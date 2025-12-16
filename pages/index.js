@@ -19,6 +19,7 @@ export default function Home() {
           <Link href="/about" className="button">
             Get Started
           </Link>
+            <Link className="button" href="/picks">Make Picks</Link>
           <button className="button" onClick={scrollToHow}>
             How it Works
           </button>
