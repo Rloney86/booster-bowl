@@ -17,13 +17,18 @@ export default function Home() {
 </p>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-          <Link href="/boosters" className="button">
-  Choose a Booster Club
-</Link>
-            <a className="button" href="/picks">Make Picks</a>
-            How it Works
-          </button>
-        </div>
+  <Link href="/booster" className="button">
+    Choose a Booster Club
+  </Link>
+
+  <Link href="/picks" className="button">
+    Make Picks
+  </Link>
+
+  <button className="button" onClick={scrollToHow}>
+    How it Works
+  </button>
+</div>
       </section>
 
       {/* HOW IT WORKS */}
