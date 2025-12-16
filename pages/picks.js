@@ -10,7 +10,7 @@ const WEEK_1_GAMES = [
 export default function Picks() {
   const [name, setName] = useState("");
   const [school, setSchool] = useState("");
-  const [picks, setPicks] = useState({}); // { gameId: "home" | "away" }
+  const [picks, setPicks] = useState({});
 
   const complete = useMemo(() => {
     return name.trim() && school.trim() && Object.keys(picks).length === WEEK_1_GAMES.length;
@@ -22,7 +22,6 @@ export default function Picks() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    // For now: no database. We’ll wire this up next (Firestore/Supabase).
     alert("Saved locally for now ✅ Next step is wiring picks to a database + leaderboard.");
   }
 
@@ -31,7 +30,7 @@ export default function Picks() {
       <section className="card" style={{ marginTop: 12 }}>
         <h1 style={{ marginTop: 0 }}>Make Your Picks</h1>
         <p style={{ opacity: 0.9, lineHeight: 1.6 }}>
-          Fill this out and pick winners for the week. Next we’ll connect this to a real database and leaderboard.
+          Pick weekly winners. Next we’ll connect this to a real database and leaderboard.
         </p>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -50,7 +49,14 @@ export default function Picks() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ray Loney"
-              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #2a2a2a", background: "transparent", color: "inherit" }}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 8,
+                border: "1px solid #2a2a2a",
+                background: "transparent",
+                color: "inherit",
+              }}
             />
           </label>
 
@@ -59,8 +65,15 @@ export default function Picks() {
             <input
               value={school}
               onChange={(e) => setSchool(e.target.value)}
-              placeholder="John Marshall Track / Big Blue Boosters"
-              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #2a2a2a", background: "transparent", color: "inherit" }}
+              placeholder="John Marshall Boosters"
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 8,
+                border: "1px solid #2a2a2a",
+                background: "transparent",
+                color: "inherit",
+              }}
             />
           </label>
         </div>
@@ -113,11 +126,7 @@ export default function Picks() {
           <button className="button" type="submit" disabled={!complete} style={{ opacity: complete ? 1 : 0.5 }}>
             Submit Picks
           </button>
-          {!complete && (
-            <span style={{ opacity: 0.8 }}>
-              Add your name + school and pick all games to submit.
-            </span>
-          )}
+          {!complete && <span style={{ opacity: 0.8 }}>Add your name + school and pick all games to submit.</span>}
         </div>
       </form>
     </main>
