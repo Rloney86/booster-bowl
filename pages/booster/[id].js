@@ -42,9 +42,8 @@ export default function BoosterProfile() {
   };
 
   const handleDonate = () => {
-    // Placeholder for now — later we’ll wire this to Stripe, PayPal, etc.
-    alert("Donate flow coming next. Tell me if you want Stripe or PayPal.");
-  };
+  router.push({ pathname: "/donate", query: { booster: id } });
+};
 
   if (!booster) {
     return (
