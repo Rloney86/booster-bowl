@@ -1,6 +1,10 @@
+import { PICKS_OPEN, CURRENT_WEEK, PICKS_DEADLINE_TEXT } from "../lib/config";
 import { useMemo, useState } from "react";
-
-const WEEK = 1; // demo week label
+<p style={{ marginTop: 6, opacity: 0.9 }}>
+  Week {CURRENT_WEEK} — {PICKS_OPEN ? "Picks are OPEN" : "Picks are LOCKED"}.
+</p>
+<p style={{ marginTop: 6, opacity: 0.8 }}>{PICKS_DEADLINE_TEXT}</p>
+const CURRENT_WEEK = 1; // demo current week label
 
 export default function Picks() {
   const games = useMemo(
@@ -47,8 +51,8 @@ export default function Picks() {
   const pickedCount = Object.keys(picks).length;
 
   function choose(gameId, side) {
-    if (submitted) return;
-    setPicks((prev) => ({ ...prev, [gameId]: side }));
+  if (!PICKS_OPEN || submitted) return;
+  setPicks((prev) => ({ ...prev, [gameId]: side }));
   }
 
   function clearAll() {
@@ -91,9 +95,9 @@ export default function Picks() {
             Picks: <b>{pickedCount}</b> / {games.length}
           </div>
 
-          <button className="button" onClick={submit} disabled={submitted}>
-            {submitted ? "Submitted ✅" : "Submit Picks"}
-          </button>
+          <button className="button" onClick={submit} disabled={!PICKS_OPEN || submitted}>
+  {!PICKS_OPEN ? "Picks Locked" : submitted ? "Submitted ✅" : "Submit Picks"}
+</button>
 
           <button
             className="button"
