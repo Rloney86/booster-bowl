@@ -20,8 +20,7 @@ export default function Home() {
           <Link href="/boosters" className="button">
   Choose a Booster Club
 </Link>
-            <Link className="button" href="/picks">Make Picks</Link>
-          <button className="button" onClick={scrollToHow}>
+            <a className="button" href="/picks">Make Picks</a>
             How it Works
           </button>
         </div>
