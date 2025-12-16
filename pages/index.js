@@ -34,23 +34,21 @@ export default function Home() {
           </p>
         )}
 
+        {/* ACTION BUTTONS */}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
           <Link href="/booster" className="button">
-  Choose a Booster Club
-</Link>
+            Choose a Booster Club
+          </Link>
 
           <Link href="/picks" className="button">
             Make Picks
           </Link>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-  <Link href="/booster" className="button">Choose a Booster Club</Link>
-  <Link href="/picks" className="button">Make Picks</Link>
-  <Link href="/leaderboard" className="button">Leaderboard</Link>
 
-  <button className="button" onClick={scrollToHow}>How it Works</button>
-</div>
+          <Link href="/leaderboard" className="button">
+            Leaderboard
+          </Link>
 
-          <a className="button" href="#how-it-works">
+          <a href="#how-it-works" className="button">
             How it Works
           </a>
         </div>
@@ -84,21 +82,21 @@ export default function Home() {
         <div className="card">
           <h3 style={{ marginTop: 0 }}>This Week’s Games</h3>
           <p style={{ opacity: 0.85 }}>
-            Coming next: a weekly slate of matchups you can pick in seconds.
+            Weekly matchups you can pick in seconds.
           </p>
         </div>
 
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
           <p style={{ opacity: 0.85 }}>
-            See who’s on top — weekly champs + season bragging rights.
+            Team Stat Book–style rankings, accuracy, and momentum.
           </p>
         </div>
 
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Support Booster Clubs</h3>
           <p style={{ opacity: 0.85 }}>
-            Every school gets a shareable page to rally community support.
+            Rally alumni, families, and fans around your program.
           </p>
         </div>
       </section>
