@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import Link from "next/link";
+
 
 const WEEK_1_GAMES = [
   { id: "g1", away: "Varina", home: "Highland Springs", time: "7:00 PM" },
@@ -8,6 +10,8 @@ const WEEK_1_GAMES = [
 ];
 
 export default function Picks() {
+  const router = useRouter();
+  const { booster } = router.query;
   const [name, setName] = useState("");
   const [school, setSchool] = useState("");
   const [picks, setPicks] = useState({});
@@ -32,6 +36,12 @@ export default function Picks() {
         <p style={{ opacity: 0.9, lineHeight: 1.6 }}>
           Pick weekly winners. Next we’ll connect this to a real database and leaderboard.
         </p>
+              {booster && (
+    <p style={{ opacity: 0.9 }}>
+      You are supporting booster club: <strong>{booster}</strong>
+    </p>
+  )}
+
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <Link className="button" href="/">Home</Link>
