@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import Link from "next/link";
 import { PICKS_OPEN, CURRENT_WEEK, PICKS_DEADLINE_TEXT } from "../lib/config";
+import { useEffect, useMemo, useState } from "react";
+
+const STORAGE_KEY = "bb_selected_booster";
 
 export default function Picks() {
   const games = useMemo(
@@ -13,6 +14,15 @@ export default function Picks() {
     ],
     []
   );
+
+  const [selectedBooster, setSelectedBooster] = useState(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setSelectedBooster(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   // picks[gameId] = "home" | "away"
   const [picks, setPicks] = useState({});
@@ -27,20 +37,19 @@ export default function Picks() {
   }
 
   function clearAll() {
-    if (!PICKS_OPEN || submitted) return;
+    if (submitted) return;
     setPicks({});
     setToast("");
   }
 
   function submit() {
-    if (!PICKS_OPEN || submitted) return;
+    if (submitted) return;
 
     if (pickedCount !== games.length) {
       setToast(`Pick ${games.length - pickedCount} more game(s) to submit.`);
       return;
     }
 
-    // Demo: no backend yet — just show "submitted" state
     setSubmitted(true);
     setToast("✅ Picks submitted (demo). Backend saving comes next.");
   }
@@ -54,6 +63,23 @@ export default function Picks() {
           Week {CURRENT_WEEK} — {PICKS_OPEN ? "Picks are OPEN" : "Picks are LOCKED"}.
         </p>
         <p style={{ marginTop: 6, opacity: 0.8 }}>{PICKS_DEADLINE_TEXT}</p>
+
+        {selectedBooster ? (
+          <p style={{ marginTop: 10, opacity: 0.9 }}>
+            Supporting: <b>{selectedBooster.name}</b> ({selectedBooster.school}) —{" "}
+            <a href="/boosters" style={{ textDecoration: "none" }}>
+              change
+            </a>
+          </p>
+        ) : (
+          <p style={{ marginTop: 10, opacity: 0.85 }}>
+            No booster selected yet —{" "}
+            <a href="/boosters" style={{ textDecoration: "none" }}>
+              choose one first
+            </a>
+            .
+          </p>
+        )}
 
         <div
           style={{
@@ -75,13 +101,13 @@ export default function Picks() {
           <button
             className="button"
             onClick={clearAll}
-            disabled={!PICKS_OPEN || submitted}
-            style={{ opacity: !PICKS_OPEN || submitted ? 0.6 : 1 }}
+            disabled={submitted}
+            style={{ opacity: submitted ? 0.6 : 1 }}
           >
             Clear
           </button>
 
-          <Link
+          <a
             href="/"
             style={{
               marginLeft: "auto",
@@ -90,7 +116,7 @@ export default function Picks() {
             }}
           >
             ← Back Home
-          </Link>
+          </a>
         </div>
 
         {toast ? (
@@ -136,22 +162,20 @@ export default function Picks() {
                   label={`Pick ${g.away}`}
                   active={picked === "away"}
                   onClick={() => choose(g.id, "away")}
-                  disabled={!PICKS_OPEN || submitted}
+                  disabled={submitted}
                 />
                 <PickButton
                   label={`Pick ${g.home}`}
                   active={picked === "home"}
                   onClick={() => choose(g.id, "home")}
-                  disabled={!PICKS_OPEN || submitted}
+                  disabled={submitted}
                 />
               </div>
             </div>
 
             <div style={{ marginTop: 10, opacity: 0.9 }}>
               Your pick:{" "}
-              <b>
-                {picked ? (picked === "home" ? g.home : g.away) : "— (none yet)"}
-              </b>
+              <b>{picked ? (picked === "home" ? g.home : g.away) : "— (none yet)"}</b>
             </div>
           </div>
         );
@@ -162,10 +186,9 @@ export default function Picks() {
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Next (after demo)</h2>
         <ol style={{ marginTop: 8, lineHeight: 1.6 }}>
-          <li>Add “Choose Booster Club” → store selection (localStorage first).</li>
-          <li>Add a real “Games” list (Google Sheet / JSON / DB later).</li>
           <li>Save picks (Vercel KV / Supabase / Firebase).</li>
           <li>Leaderboard page.</li>
+          <li>Booster share + donate page.</li>
         </ol>
       </div>
     </div>
