@@ -15,6 +15,37 @@ export default function BoosterProfile() {
 
   if (!id) return null;
 
+  const shareUrl =
+    typeof window !== "undefined" ? window.location.href : "";
+
+  const handleShare = async () => {
+    const title = booster ? `${booster.name} — Booster Bowl` : "Booster Bowl";
+    const text = booster
+      ? `Support ${booster.school} in Booster Bowl!`
+      : "Support a booster club in Booster Bowl!";
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url: shareUrl });
+        return;
+      }
+    } catch (e) {
+      // user cancelled share — ignore
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      alert("Link copied! Paste it in a text, email, or group chat.");
+    } catch (e) {
+      prompt("Copy this link:", shareUrl);
+    }
+  };
+
+  const handleDonate = () => {
+    // Placeholder for now — later we’ll wire this to Stripe, PayPal, etc.
+    alert("Donate flow coming next. Tell me if you want Stripe or PayPal.");
+  };
+
   if (!booster) {
     return (
       <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
@@ -41,6 +72,14 @@ export default function BoosterProfile() {
             Make Picks for This Booster
           </Link>
 
+          <button className="button" onClick={handleShare}>
+            Share
+          </button>
+
+          <button className="button" onClick={handleDonate}>
+            Donate
+          </button>
+
           <Link className="button" href="/booster">
             Choose Another Booster
           </Link>
@@ -50,8 +89,7 @@ export default function BoosterProfile() {
       <section className="card" style={{ marginTop: 18 }}>
         <h2 style={{ marginTop: 0 }}>About</h2>
         <p style={{ opacity: 0.85, lineHeight: 1.7 }}>
-          This page is where we’ll show your booster’s fundraiser info, standings,
-          and a share link for supporters.
+          This page is where we’ll show fundraiser info, standings, and a share link for supporters.
         </p>
       </section>
     </main>
