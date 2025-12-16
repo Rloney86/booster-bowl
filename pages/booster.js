@@ -19,6 +19,16 @@ const BOOSTERS = [
     school: "Varina High School",
     name: "Blue Devils Boosters",
   },
+  {
+    id: "maury",
+    school: "Maury High School",
+    name: "Maury Boosters",
+  },
+  {
+    id: "glenallen",
+    school: "Glen Allen High School",
+    name: "Jaguar Nation",
+  },
 ];
 
 export default function Boosters() {
