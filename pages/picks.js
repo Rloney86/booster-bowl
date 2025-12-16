@@ -5,15 +5,40 @@ const STORAGE_KEY = "bb_selected_booster";
 
 export default function Picks() {
   const games = useMemo(
-    () => [
-      { id: "g1", away: "Varina", home: "Highland Springs", kickoff: "Fri 7:00 PM" },
-      { id: "g2", away: "John Marshall", home: "Hermitage", kickoff: "Fri 7:00 PM" },
-      { id: "g3", away: "Thomas Jefferson", home: "Huguenot", kickoff: "Sat 1:00 PM" },
-      { id: "g4", away: "Manchester", home: "LC Bird", kickoff: "Sat 4:00 PM" },
-      { id: "g5", away: "Dinwiddie", home: "Prince George", kickoff: "Sat 7:00 PM" },
-    ],
-    []
-  );
+  () => [
+    {
+      id: "g1",
+      away: "Varina",
+      home: "Highland Springs",
+      kickoff: "Fri 7:00 PM",
+    },
+    {
+      id: "g2",
+      away: "John Marshall",
+      home: "Hermitage",
+      kickoff: "Fri 7:00 PM",
+    },
+    {
+      id: "g3",
+      away: "Maury",
+      home: "Phoebus",
+      kickoff: "Fri 7:00 PM",
+    },
+    {
+      id: "g4",
+      away: "Hampton",
+      home: "Glen Allen",
+      kickoff: "Sat 1:00 PM",
+    },
+    {
+      id: "g5",
+      away: "Thomas Jefferson",
+      home: "Huguenot",
+      kickoff: "Sat 4:00 PM",
+    },
+  ],
+  []
+);
 
   const [selectedBooster, setSelectedBooster] = useState(null);
 
