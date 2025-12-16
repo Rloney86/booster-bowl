@@ -1,38 +1,52 @@
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+const STORAGE_KEY = "bb_selected_booster";
 
 export default function Home() {
-  const scrollToHow = () => {
-    const el = document.getElementById("how-it-works");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  };
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setSelected(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
       {/* HERO */}
       <section className="card" style={{ marginTop: 24 }}>
         <h1 style={{ marginTop: 0 }}>Booster Bowl</h1>
-<p style={{ fontSize: 18, opacity: 0.95, lineHeight: 1.5 }}>
-  A community fundraiser that helps school booster clubs raise support —
-  with friendly competition and season-long bragging rights.
-</p>
+
+        <p style={{ fontSize: 18, opacity: 0.95, lineHeight: 1.5 }}>
+          A community fundraiser that helps school booster clubs raise support —
+          with friendly competition and season-long bragging rights.
+        </p>
+
+        {selected ? (
+          <p style={{ marginTop: 10, opacity: 0.9 }}>
+            Selected booster: <b>{selected.name}</b> ({selected.school})
+          </p>
+        ) : (
+          <p style={{ marginTop: 10, opacity: 0.85 }}>
+            No booster selected yet — choose one to get started.
+          </p>
+        )}
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-  <Link href="/booster" className="button">
-    Choose a Booster Club
-  </Link>
+          <Link href="/boosters" className="button">
+            Choose a Booster Club
+          </Link>
 
-  <Link href="/picks" className="button">
-    Make Picks
-  </Link>
-    
-    <Link href="/leaderboard" className="button">
-  Leaderboard
-</Link>
+          <Link href="/picks" className="button">
+            Make Picks
+          </Link>
 
-  <button className="button" onClick={scrollToHow}>
-    How it Works
-  </button>
-</div>
+          <a className="button" href="#how-it-works">
+            How it Works
+          </a>
+        </div>
       </section>
 
       {/* HOW IT WORKS */}
@@ -82,10 +96,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer style={{ marginTop: 24, opacity: 0.75, fontSize: 14 }}>
         Built for schools, families, and community pride.
       </footer>
     </main>
   );
-                     }
+}
