@@ -42,15 +42,9 @@ export default function Boosters() {
             <h3 style={{ marginTop: 0 }}>{b.school}</h3>
             <p style={{ opacity: 0.85 }}>{b.name}</p>
 
-            <Link
-              className="button"
-              href={{
-                pathname: "/picks",
-                query: { booster: b.id },
-              }}
-            >
-              Support This Booster
-            </Link>
+            <Link className="button" href={`/booster/${b.id}`}>
+  View Booster Page
+</Link>
           </div>
         ))}
       </section>
