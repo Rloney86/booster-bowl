@@ -1,8 +1,220 @@
+import { useMemo, useState } from "react";
+
+const WEEK = 1; // demo week label
+
 export default function Picks() {
+  const games = useMemo(
+    () => [
+      {
+        id: "g1",
+        away: "Varina",
+        home: "Highland Springs",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g2",
+        away: "John Marshall",
+        home: "Hermitage",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g3",
+        away: "Thomas Jefferson",
+        home: "Huguenot",
+        kickoff: "Sat 1:00 PM",
+      },
+      {
+        id: "g4",
+        away: "Manchester",
+        home: "LC Bird",
+        kickoff: "Sat 4:00 PM",
+      },
+      {
+        id: "g5",
+        away: "Dinwiddie",
+        home: "Prince George",
+        kickoff: "Sat 7:00 PM",
+      },
+    ],
+    []
+  );
+
+  // picks[gameId] = "home" | "away"
+  const [picks, setPicks] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const pickedCount = Object.keys(picks).length;
+
+  function choose(gameId, side) {
+    if (submitted) return;
+    setPicks((prev) => ({ ...prev, [gameId]: side }));
+  }
+
+  function clearAll() {
+    if (submitted) return;
+    setPicks({});
+    setToast("");
+  }
+
+  function submit() {
+    if (submitted) return;
+
+    if (pickedCount !== games.length) {
+      setToast(`Pick ${games.length - pickedCount} more game(s) to submit.`);
+      return;
+    }
+
+    // Demo: no backend yet — just show "submitted" state
+    setSubmitted(true);
+    setToast("✅ Picks submitted (demo). Backend saving comes next.");
+  }
+
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Picks page is live ✅</h1>
-      <p>If you see this, routing works.</p>
+    <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
+      <div className="card">
+        <h1 style={{ marginTop: 0 }}>Make Picks (Demo)</h1>
+        <p style={{ marginTop: 6, opacity: 0.9 }}>
+          Week {WEEK} — demo games only (no login / no saving yet).
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+            marginTop: 14,
+          }}
+        >
+          <div style={{ opacity: 0.9 }}>
+            Picks: <b>{pickedCount}</b> / {games.length}
+          </div>
+
+          <button className="button" onClick={submit} disabled={submitted}>
+            {submitted ? "Submitted ✅" : "Submit Picks"}
+          </button>
+
+          <button
+            className="button"
+            onClick={clearAll}
+            disabled={submitted}
+            style={{ opacity: submitted ? 0.6 : 1 }}
+          >
+            Clear
+          </button>
+
+          <a
+            href="/"
+            style={{
+              marginLeft: "auto",
+              textDecoration: "none",
+              opacity: 0.85,
+            }}
+          >
+            ← Back Home
+          </a>
+        </div>
+
+        {toast ? (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 12,
+              border: "1px solid #2a3b57",
+              background: "#0a1322",
+            }}
+          >
+            {toast}
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{ height: 18 }} />
+
+      {games.map((g) => {
+        const picked = picks[g.id]; // "home" | "away" | undefined
+
+        return (
+          <div key={g.id} className="card">
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 14, opacity: 0.85 }}>
+                  Kickoff: {g.kickoff}
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6 }}>
+                  {g.away} <span style={{ opacity: 0.7 }}>at</span> {g.home}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <PickButton
+                  label={`Pick ${g.away}`}
+                  active={picked === "away"}
+                  onClick={() => choose(g.id, "away")}
+                  disabled={submitted}
+                />
+                <PickButton
+                  label={`Pick ${g.home}`}
+                  active={picked === "home"}
+                  onClick={() => choose(g.id, "home")}
+                  disabled={submitted}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10, opacity: 0.9 }}>
+              Your pick:{" "}
+              <b>
+                {picked
+                  ? picked === "home"
+                    ? g.home
+                    : g.away
+                  : "— (none yet)"}
+              </b>
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ height: 18 }} />
+
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Next (after demo)</h2>
+        <ol style={{ marginTop: 8, lineHeight: 1.6 }}>
+          <li>Add “Choose Booster Club” → store selection (localStorage first).</li>
+          <li>Add a real “Games” list (Google Sheet / JSON / DB later).</li>
+          <li>Save picks (Vercel KV / Supabase / Firebase).</li>
+          <li>Leaderboard page.</li>
+        </ol>
+      </div>
     </div>
   );
 }
+
+function PickButton({ label, active, onClick, disabled }) {
+  return (
+    <button
+      className="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        transform: active ? "translateY(-1px)" : "none",
+        outline: active ? "2px solid #3b82f6" : "none",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {active ? "✅ " : ""}
+      {label}
+    </button>
+  );
+                }
