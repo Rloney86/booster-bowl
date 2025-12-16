@@ -1,44 +1,15 @@
-import { PICKS_OPEN, CURRENT_WEEK, PICKS_DEADLINE_TEXT } from "../lib/config";
 import { useMemo, useState } from "react";
-<p style={{ marginTop: 6, opacity: 0.9 }}>
-  Week {CURRENT_WEEK} — {PICKS_OPEN ? "Picks are OPEN" : "Picks are LOCKED"}.
-</p>
-<p style={{ marginTop: 6, opacity: 0.8 }}>{PICKS_DEADLINE_TEXT}</p>
-const CURRENT_WEEK = 1; // demo current week label
+import Link from "next/link";
+import { PICKS_OPEN, CURRENT_WEEK, PICKS_DEADLINE_TEXT } from "../lib/config";
 
 export default function Picks() {
   const games = useMemo(
     () => [
-      {
-        id: "g1",
-        away: "Varina",
-        home: "Highland Springs",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g2",
-        away: "John Marshall",
-        home: "Hermitage",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g3",
-        away: "Thomas Jefferson",
-        home: "Huguenot",
-        kickoff: "Sat 1:00 PM",
-      },
-      {
-        id: "g4",
-        away: "Manchester",
-        home: "LC Bird",
-        kickoff: "Sat 4:00 PM",
-      },
-      {
-        id: "g5",
-        away: "Dinwiddie",
-        home: "Prince George",
-        kickoff: "Sat 7:00 PM",
-      },
+      { id: "g1", away: "Varina", home: "Highland Springs", kickoff: "Fri 7:00 PM" },
+      { id: "g2", away: "John Marshall", home: "Hermitage", kickoff: "Fri 7:00 PM" },
+      { id: "g3", away: "Thomas Jefferson", home: "Huguenot", kickoff: "Sat 1:00 PM" },
+      { id: "g4", away: "Manchester", home: "LC Bird", kickoff: "Sat 4:00 PM" },
+      { id: "g5", away: "Dinwiddie", home: "Prince George", kickoff: "Sat 7:00 PM" },
     ],
     []
   );
@@ -51,18 +22,18 @@ export default function Picks() {
   const pickedCount = Object.keys(picks).length;
 
   function choose(gameId, side) {
-  if (!PICKS_OPEN || submitted) return;
-  setPicks((prev) => ({ ...prev, [gameId]: side }));
+    if (!PICKS_OPEN || submitted) return;
+    setPicks((prev) => ({ ...prev, [gameId]: side }));
   }
 
   function clearAll() {
-    if (submitted) return;
+    if (!PICKS_OPEN || submitted) return;
     setPicks({});
     setToast("");
   }
 
   function submit() {
-    if (submitted) return;
+    if (!PICKS_OPEN || submitted) return;
 
     if (pickedCount !== games.length) {
       setToast(`Pick ${games.length - pickedCount} more game(s) to submit.`);
@@ -78,9 +49,11 @@ export default function Picks() {
     <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
       <div className="card">
         <h1 style={{ marginTop: 0 }}>Make Picks (Demo)</h1>
+
         <p style={{ marginTop: 6, opacity: 0.9 }}>
-          Week {WEEK} — demo games only (no login / no saving yet).
+          Week {CURRENT_WEEK} — {PICKS_OPEN ? "Picks are OPEN" : "Picks are LOCKED"}.
         </p>
+        <p style={{ marginTop: 6, opacity: 0.8 }}>{PICKS_DEADLINE_TEXT}</p>
 
         <div
           style={{
@@ -96,19 +69,19 @@ export default function Picks() {
           </div>
 
           <button className="button" onClick={submit} disabled={!PICKS_OPEN || submitted}>
-  {!PICKS_OPEN ? "Picks Locked" : submitted ? "Submitted ✅" : "Submit Picks"}
-</button>
+            {!PICKS_OPEN ? "Picks Locked" : submitted ? "Submitted ✅" : "Submit Picks"}
+          </button>
 
           <button
             className="button"
             onClick={clearAll}
-            disabled={submitted}
-            style={{ opacity: submitted ? 0.6 : 1 }}
+            disabled={!PICKS_OPEN || submitted}
+            style={{ opacity: !PICKS_OPEN || submitted ? 0.6 : 1 }}
           >
             Clear
           </button>
 
-          <a
+          <Link
             href="/"
             style={{
               marginLeft: "auto",
@@ -117,7 +90,7 @@ export default function Picks() {
             }}
           >
             ← Back Home
-          </a>
+          </Link>
         </div>
 
         {toast ? (
@@ -152,9 +125,7 @@ export default function Picks() {
               }}
             >
               <div>
-                <div style={{ fontSize: 14, opacity: 0.85 }}>
-                  Kickoff: {g.kickoff}
-                </div>
+                <div style={{ fontSize: 14, opacity: 0.85 }}>Kickoff: {g.kickoff}</div>
                 <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6 }}>
                   {g.away} <span style={{ opacity: 0.7 }}>at</span> {g.home}
                 </div>
@@ -165,13 +136,13 @@ export default function Picks() {
                   label={`Pick ${g.away}`}
                   active={picked === "away"}
                   onClick={() => choose(g.id, "away")}
-                  disabled={submitted}
+                  disabled={!PICKS_OPEN || submitted}
                 />
                 <PickButton
                   label={`Pick ${g.home}`}
                   active={picked === "home"}
                   onClick={() => choose(g.id, "home")}
-                  disabled={submitted}
+                  disabled={!PICKS_OPEN || submitted}
                 />
               </div>
             </div>
@@ -179,11 +150,7 @@ export default function Picks() {
             <div style={{ marginTop: 10, opacity: 0.9 }}>
               Your pick:{" "}
               <b>
-                {picked
-                  ? picked === "home"
-                    ? g.home
-                    : g.away
-                  : "— (none yet)"}
+                {picked ? (picked === "home" ? g.home : g.away) : "— (none yet)"}
               </b>
             </div>
           </div>
@@ -221,4 +188,4 @@ function PickButton({ label, active, onClick, disabled }) {
       {label}
     </button>
   );
-                }
+}
