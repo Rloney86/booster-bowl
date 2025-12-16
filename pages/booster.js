@@ -1,4 +1,7 @@
-import Link from "next/link";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
+
+const STORAGE_KEY = "bb_selected_booster";
 
 const BOOSTERS = [
   {
@@ -19,14 +22,48 @@ const BOOSTERS = [
 ];
 
 export default function Boosters() {
+  const router = useRouter();
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setSelected(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  function chooseBooster(b) {
+    const payload = { id: b.id, school: b.school, name: b.name };
+    setSelected(payload);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch {}
+    router.push("/picks");
+  }
+
+  function clearSelection() {
+    setSelected(null);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  }
+
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
-      <section className="card" style={{ marginTop: 12 }}>
+      <section className="card" style={{ marginTop: 24 }}>
         <h1 style={{ marginTop: 0 }}>Choose a Booster Club</h1>
-        <p style={{ lineHeight: 1.6, opacity: 0.9 }}>
-          Booster Bowl is a fundraiser-first platform.  
-          Start by choosing the school or booster club you want to support.
+        <p style={{ marginTop: 6, opacity: 0.9 }}>
+          Pick a school booster club to support. We’ll remember your selection on this device.
         </p>
+
+        {selected ? (
+          <div style={{ marginTop: 12, opacity: 0.95 }}>
+            Current selection: <b>{selected.name}</b> ({selected.school}){" "}
+            <button className="button" onClick={clearSelection} style={{ marginLeft: 12 }}>
+              Clear
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <section
@@ -40,19 +77,19 @@ export default function Boosters() {
         {BOOSTERS.map((b) => (
           <div key={b.id} className="card">
             <h3 style={{ marginTop: 0 }}>{b.school}</h3>
-            <p style={{ opacity: 0.85 }}>{b.name}</p>
+            <p style={{ opacity: 0.85, marginTop: 6 }}>{b.name}</p>
 
-            <Link className="button" href={`/booster/${b.id}`}>
-  View Booster Page
-</Link>
+            <button className="button" onClick={() => chooseBooster(b)} style={{ marginTop: 10 }}>
+              Support This Booster
+            </button>
           </div>
         ))}
       </section>
 
       <footer style={{ marginTop: 24 }}>
-        <Link className="button" href="/">
-          Back Home
-        </Link>
+        <a href="/" style={{ textDecoration: "none", opacity: 0.85 }}>
+          ← Back Home
+        </a>
       </footer>
     </main>
   );
