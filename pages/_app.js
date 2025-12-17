@@ -1,26 +1,52 @@
 import "../styles.css";
 import Link from "next/link";
 
-export default function App({ Component, pageProps }) {
+export default function MyApp({ Component, pageProps }) {
   return (
     <>
-      <nav
+      {/* Global Header */}
+      <header
         style={{
-          maxWidth: 900,
-          margin: "0 auto",
-          padding: "16px 24px 0",
-          display: "flex",
-          gap: 14,
-          alignItems: "center",
+          background: "#000",
+          padding: "14px 20px",
+          borderBottom: "2px solid #00f5c4",
         }}
       >
-        <Link href="/" style={{ fontWeight: 700 }}>
-          Booster Bowl
-        </Link>
-        <Link href="/about">About</Link>
-      </nav>
+        <div
+          style={{
+            maxWidth: 1100,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+          }}
+        >
+          <Link href="/" style={{ display: "flex", alignItems: "center" }}>
+            <img
+              src="/booster-bowl-logo.png"
+              alt="Booster Bowl"
+              style={{ height: 52 }}
+            />
+          </Link>
 
+          <nav style={{ marginLeft: "auto", display: "flex", gap: 18 }}>
+            <Link href="/" style={navLink}>Home</Link>
+            <Link href="/picks" style={navLink}>Make Picks</Link>
+            <Link href="/leaderboard" style={navLink}>Leaderboard</Link>
+            <Link href="/about" style={navLink}>About</Link>
+          </nav>
+        </div>
+      </header>
+
+      {/* Page Content */}
       <Component {...pageProps} />
     </>
   );
 }
+
+const navLink = {
+  color: "#ffffff",
+  textDecoration: "none",
+  fontWeight: 600,
+  letterSpacing: "0.5px",
+};
