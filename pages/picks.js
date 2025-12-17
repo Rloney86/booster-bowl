@@ -36,10 +36,21 @@ export default function Picks() {
       home: "Huguenot",
       kickoff: "Sat 4:00 PM",
     },
+    {
+      id: "g6",
+      away: "Woodson High",
+      home: "Ballou High School",
+      kickoff: "Sat 7:00 PM",
+    },
+    {
+      id: "g7",
+      away: "Armstrong",
+      home: "Henrico",
+      kickoff: "Fri 7:30 PM",
+    },
   ],
   []
 );
-
   const [selectedBooster, setSelectedBooster] = useState(null);
 
   useEffect(() => {
