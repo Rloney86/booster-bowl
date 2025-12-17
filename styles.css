@@ -131,6 +131,21 @@ a:hover{ text-decoration: underline; }
   color: var(--text);
 }
 .button:disabled{ opacity:.55; cursor:not-allowed; }
+.button.primary {
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  color: #041018;
+}
+
+.button.secondary {
+  background: #ffffff;
+  border: 2px solid var(--border);
+  color: var(--text);
+}
+
+.button.ghost {
+  background: transparent;
+  color: var(--muted);
+}
 
 /* ===== Inputs ===== */
 input{
