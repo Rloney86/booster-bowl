@@ -1,3 +1,11 @@
+<section className="hero">
+  <div className="kicker"><span className="kicker-dot"></span> FUNDRAISE LIKE IT’S 2025</div>
+  <h1 className="h1"><span className="grad-text">Booster Bowl</span></h1>
+  <p className="lede">
+    A booster-first fundraiser that rallies your community — with friendly competition and season-long bragging rights.
+  </p>
+</section>
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -14,7 +22,8 @@ export default function Home() {
   }, []);
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
+    <main className="container">
+
       {/* HERO */}
       <section className="card" style={{ marginTop: 24 }}>
         <h1 style={{ marginTop: 0 }}>Booster Bowl</h1>
