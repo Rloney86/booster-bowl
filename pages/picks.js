@@ -5,52 +5,53 @@ const STORAGE_KEY = "bb_selected_booster";
 
 export default function Picks() {
   const games = useMemo(
-  () => [
-    {
-      id: "g1",
-      away: "Phoebus",
-      home: "Highland Springs",
-      kickoff: "Fri 7:00 PM",
-    },
-    {
-      id: "g2",
-      away: "John Marshall",
-      home: "Henrico",
-      kickoff: "Fri 7:00 PM",
-    },
-    {
-      id: "g3",
-      away: "Maury",
-      home: "Varina",
-      kickoff: "Fri 7:00 PM",
-    },
-    {
-      id: "g4",
-      away: "Deep Run",
-      home: "Glen Allen",
-      kickoff: "Sat 1:00 PM",
-    },
-    {
-      id: "g5",
-      away: "Hermitage",
-      home: "Huguenot",
-      kickoff: "Sat 4:00 PM",
-    },
-    {
-      id: "g6",
-      away: "Lafayette",
-      home: "Oscar Smith",
-      kickoff: "Sat 7:00 PM",
-    },
-    {
-      id: "g7",
-      away: "Armstrong",
-      home: "Thomas Jefferson",
-      kickoff: "Fri 7:30 PM",
-    },
-  ],
-  []
-);
+    () => [
+      {
+        id: "g1",
+        away: "Varina",
+        home: "Henrico",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g2",
+        away: "L.C. Bird",
+        home: "Highland Springs",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g3",
+        away: "Hermitage",
+        home: "Deep Run",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g4",
+        away: "Hampton",
+        home: "Glen Allen",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g5",
+        away: "Mills Godwin",
+        home: "J.R. Tucker",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g6",
+        away: "Atlee",
+        home: "Hanover",
+        kickoff: "Fri 7:00 PM",
+      },
+      {
+        id: "g7",
+        away: "Midlothian",
+        home: "Huguenot",
+        kickoff: "Fri 7:00 PM",
+      },
+    ],
+    []
+  );
+
   const [selectedBooster, setSelectedBooster] = useState(null);
 
   useEffect(() => {
@@ -96,13 +97,18 @@ export default function Picks() {
         <h1 style={{ marginTop: 0 }}>Make Picks (Demo)</h1>
 
         <p style={{ marginTop: 6, opacity: 0.9 }}>
-          Week {CURRENT_WEEK} — {PICKS_OPEN ? "Picks are OPEN" : "Picks are LOCKED"}.
+          Week {CURRENT_WEEK} —{" "}
+          {PICKS_OPEN ? "Picks are OPEN" : "Picks are LOCKED"}.
         </p>
-        <p style={{ marginTop: 6, opacity: 0.8 }}>{PICKS_DEADLINE_TEXT}</p>
+
+        <p style={{ marginTop: 6, opacity: 0.8 }}>
+          {PICKS_DEADLINE_TEXT}
+        </p>
 
         {selectedBooster ? (
           <p style={{ marginTop: 10, opacity: 0.9 }}>
-            Supporting: <b>{selectedBooster.name}</b> ({selectedBooster.school}) —{" "}
+            Supporting: <b>{selectedBooster.name}</b>{" "}
+            ({selectedBooster.school}) —{" "}
             <a href="/boosters" style={{ textDecoration: "none" }}>
               change
             </a>
@@ -130,8 +136,16 @@ export default function Picks() {
             Picks: <b>{pickedCount}</b> / {games.length}
           </div>
 
-          <button className="button" onClick={submit} disabled={!PICKS_OPEN || submitted}>
-            {!PICKS_OPEN ? "Picks Locked" : submitted ? "Submitted ✅" : "Submit Picks"}
+          <button
+            className="button"
+            onClick={submit}
+            disabled={!PICKS_OPEN || submitted}
+          >
+            {!PICKS_OPEN
+              ? "Picks Locked"
+              : submitted
+              ? "Submitted ✅"
+              : "Submit Picks"}
           </button>
 
           <button
@@ -173,7 +187,7 @@ export default function Picks() {
       <div style={{ height: 18 }} />
 
       {games.map((g) => {
-        const picked = picks[g.id]; // "home" | "away" | undefined
+        const picked = picks[g.id];
 
         return (
           <div key={g.id} className="card">
@@ -187,19 +201,37 @@ export default function Picks() {
               }}
             >
               <div>
-                <div style={{ fontSize: 14, opacity: 0.85 }}>Kickoff: {g.kickoff}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6 }}>
-                  {g.away} <span style={{ opacity: 0.7 }}>at</span> {g.home}
+                <div style={{ fontSize: 14, opacity: 0.85 }}>
+                  Kickoff: {g.kickoff}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    marginTop: 6,
+                  }}
+                >
+                  {g.away}{" "}
+                  <span style={{ opacity: 0.7 }}>at</span>{" "}
+                  {g.home}
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
                 <PickButton
                   label={`Pick ${g.away}`}
                   active={picked === "away"}
                   onClick={() => choose(g.id, "away")}
                   disabled={submitted}
                 />
+
                 <PickButton
                   label={`Pick ${g.home}`}
                   active={picked === "home"}
@@ -211,7 +243,13 @@ export default function Picks() {
 
             <div style={{ marginTop: 10, opacity: 0.9 }}>
               Your pick:{" "}
-              <b>{picked ? (picked === "home" ? g.home : g.away) : "— (none yet)"}</b>
+              <b>
+                {picked
+                  ? picked === "home"
+                    ? g.home
+                    : g.away
+                  : "— (none yet)"}
+              </b>
             </div>
           </div>
         );
@@ -221,6 +259,7 @@ export default function Picks() {
 
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Next (after demo)</h2>
+
         <ol style={{ marginTop: 8, lineHeight: 1.6 }}>
           <li>Save picks (Vercel KV / Supabase / Firebase).</li>
           <li>Leaderboard page.</li>
@@ -247,4 +286,4 @@ function PickButton({ label, active, onClick, disabled }) {
       {label}
     </button>
   );
-}
+          }
