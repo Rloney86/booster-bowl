@@ -5,54 +5,12 @@ import { WEEKLY_GAMES } from "../lib/weeklyGames";
 const STORAGE_KEY = "bb_selected_booster";
 
 export default function Picks() {
-const games = useMemo(() => WEEKLY_GAMES, []);
-      {
-        id: "g1",
-        away: "Varina",
-        home: "Henrico",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g2",
-        away: "L.C. Bird",
-        home: "Highland Springs",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g3",
-        away: "Hermitage",
-        home: "Deep Run",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g4",
-        away: "Hampton",
-        home: "Glen Allen",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g5",
-        away: "Mills Godwin",
-        home: "J.R. Tucker",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g6",
-        away: "Atlee",
-        home: "Hanover",
-        kickoff: "Fri 7:00 PM",
-      },
-      {
-        id: "g7",
-        away: "Midlothian",
-        home: "Huguenot",
-        kickoff: "Fri 7:00 PM",
-      },
-    ],
-    []
-  );
+  const games = useMemo(() => WEEKLY_GAMES, []);
 
   const [selectedBooster, setSelectedBooster] = useState(null);
+  const [picks, setPicks] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     try {
@@ -61,20 +19,20 @@ const games = useMemo(() => WEEKLY_GAMES, []);
     } catch {}
   }, []);
 
-  // picks[gameId] = "home" | "away"
-  const [picks, setPicks] = useState({});
-  const [submitted, setSubmitted] = useState(false);
-  const [toast, setToast] = useState("");
-
   const pickedCount = Object.keys(picks).length;
 
   function choose(gameId, side) {
     if (!PICKS_OPEN || submitted) return;
-    setPicks((prev) => ({ ...prev, [gameId]: side }));
+
+    setPicks((prev) => ({
+      ...prev,
+      [gameId]: side,
+    }));
   }
 
   function clearAll() {
     if (submitted) return;
+
     setPicks({});
     setToast("");
   }
@@ -92,9 +50,21 @@ const games = useMemo(() => WEEKLY_GAMES, []);
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
+    <div
+      style={{
+        padding: 24,
+        maxWidth: 900,
+        margin: "0 auto",
+      }}
+    >
       <div className="card">
-        <h1 style={{ marginTop: 0 }}>Make Picks (Demo)</h1>
+        <h1 style={{ marginTop: 0 }}>
+          🏈 Virginia Games of the Week
+        </h1>
+
+        <h2 style={{ marginTop: 6 }}>
+          12 Best VHSL Matchups
+        </h2>
 
         <p style={{ marginTop: 6, opacity: 0.9 }}>
           Week {CURRENT_WEEK} —{" "}
@@ -109,14 +79,20 @@ const games = useMemo(() => WEEKLY_GAMES, []);
           <p style={{ marginTop: 10, opacity: 0.9 }}>
             Supporting: <b>{selectedBooster.name}</b>{" "}
             ({selectedBooster.school}) —{" "}
-            <a href="/boosters" style={{ textDecoration: "none" }}>
+            <a
+              href="/boosters"
+              style={{ textDecoration: "none" }}
+            >
               change
             </a>
           </p>
         ) : (
           <p style={{ marginTop: 10, opacity: 0.85 }}>
             No booster selected yet —{" "}
-            <a href="/boosters" style={{ textDecoration: "none" }}>
+            <a
+              href="/boosters"
+              style={{ textDecoration: "none" }}
+            >
               choose one first
             </a>
             .
@@ -152,7 +128,9 @@ const games = useMemo(() => WEEKLY_GAMES, []);
             className="button"
             onClick={clearAll}
             disabled={submitted}
-            style={{ opacity: submitted ? 0.6 : 1 }}
+            style={{
+              opacity: submitted ? 0.6 : 1,
+            }}
           >
             Clear
           </button>
@@ -176,7 +154,6 @@ const games = useMemo(() => WEEKLY_GAMES, []);
               padding: 12,
               borderRadius: 12,
               border: "1px solid #2a3b57",
-              background: "#0a1322",
             }}
           >
             {toast}
@@ -186,7 +163,7 @@ const games = useMemo(() => WEEKLY_GAMES, []);
 
       <div style={{ height: 18 }} />
 
-      {games.map((g) => {
+      {games.map((g, index) => {
         const picked = picks[g.id];
 
         return (
@@ -201,7 +178,23 @@ const games = useMemo(() => WEEKLY_GAMES, []);
               }}
             >
               <div>
-                <div style={{ fontSize: 14, opacity: 0.85 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    opacity: 0.7,
+                    marginBottom: 4,
+                  }}
+                >
+                  GAME {index + 1} OF {games.length}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 14,
+                    opacity: 0.85,
+                  }}
+                >
                   Kickoff: {g.kickoff}
                 </div>
 
@@ -213,7 +206,9 @@ const games = useMemo(() => WEEKLY_GAMES, []);
                   }}
                 >
                   {g.away}{" "}
-                  <span style={{ opacity: 0.7 }}>at</span>{" "}
+                  <span style={{ opacity: 0.7 }}>
+                    at
+                  </span>{" "}
                   {g.home}
                 </div>
               </div>
@@ -228,20 +223,29 @@ const games = useMemo(() => WEEKLY_GAMES, []);
                 <PickButton
                   label={`Pick ${g.away}`}
                   active={picked === "away"}
-                  onClick={() => choose(g.id, "away")}
+                  onClick={() =>
+                    choose(g.id, "away")
+                  }
                   disabled={submitted}
                 />
 
                 <PickButton
                   label={`Pick ${g.home}`}
                   active={picked === "home"}
-                  onClick={() => choose(g.id, "home")}
+                  onClick={() =>
+                    choose(g.id, "home")
+                  }
                   disabled={submitted}
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: 10, opacity: 0.9 }}>
+            <div
+              style={{
+                marginTop: 10,
+                opacity: 0.9,
+              }}
+            >
               Your pick:{" "}
               <b>
                 {picked
@@ -258,27 +262,42 @@ const games = useMemo(() => WEEKLY_GAMES, []);
       <div style={{ height: 18 }} />
 
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Next (after demo)</h2>
+        <h2 style={{ marginTop: 0 }}>
+          Booster Bowl
+        </h2>
 
-        <ol style={{ marginTop: 8, lineHeight: 1.6 }}>
-          <li>Save picks (Vercel KV / Supabase / Firebase).</li>
-          <li>Leaderboard page.</li>
-          <li>Booster share + donate page.</li>
-        </ol>
+        <p
+          style={{
+            marginBottom: 0,
+            lineHeight: 1.6,
+          }}
+        >
+          Make your picks. Support your booster club.
+          Compete for season-long bragging rights.
+        </p>
       </div>
     </div>
   );
 }
 
-function PickButton({ label, active, onClick, disabled }) {
+function PickButton({
+  label,
+  active,
+  onClick,
+  disabled,
+}) {
   return (
     <button
       className="button"
       onClick={onClick}
       disabled={disabled}
       style={{
-        transform: active ? "translateY(-1px)" : "none",
-        outline: active ? "2px solid #3b82f6" : "none",
+        transform: active
+          ? "translateY(-1px)"
+          : "none",
+        outline: active
+          ? "2px solid #3b82f6"
+          : "none",
         opacity: disabled ? 0.6 : 1,
       }}
     >
@@ -286,4 +305,4 @@ function PickButton({ label, active, onClick, disabled }) {
       {label}
     </button>
   );
-          }
+}
