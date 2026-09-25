@@ -1,5 +1,6 @@
 import { PICKS_OPEN, CURRENT_WEEK, PICKS_DEADLINE_TEXT } from "../lib/config";
 import { useEffect, useMemo, useState } from "react";
+import { WEEKLY_GAMES } from "../lib/weeklyGames";
 
 const STORAGE_KEY = "bb_selected_booster";
 
