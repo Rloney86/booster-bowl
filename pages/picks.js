@@ -5,8 +5,7 @@ import { WEEKLY_GAMES } from "../lib/weeklyGames";
 const STORAGE_KEY = "bb_selected_booster";
 
 export default function Picks() {
-  const games = useMemo(
-    () => [
+const games = useMemo(() => WEEKLY_GAMES, []);
       {
         id: "g1",
         away: "Varina",
