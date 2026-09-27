@@ -75,136 +75,87 @@ export default function Picks() {
     }
     setBusy(true);
     setToast("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true },
-    });
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
     setBusy(false);
-    if (error) {
-      setToast("Could not send sign-in code: " + error.message);
-      return;
-    }
-    try {
-      localStorage.setItem(PLAYER_KEY, JSON.stringify({ playerName: playerName.trim(), email: email.trim() }));
-    } catch {}
+    if (error) { setToast("Could not send sign-in code: " + error.message); return; }
+    try { localStorage.setItem(PLAYER_KEY, JSON.stringify({ playerName: playerName.trim(), email: email.trim() })); } catch {}
     setAuthStep("otp");
     setToast("📧 Check your email for your Booster Bowl sign-in code.");
   }
 
   async function verifyCode() {
-    if (!otp.trim()) {
-      setToast("Enter the code from your email.");
-      return;
-    }
-    setBusy(true);
-    setToast("");
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: otp.trim(),
-      type: "email",
-    });
+    if (!otp.trim()) { setToast("Enter the code from your email."); return; }
+    setBusy(true); setToast("");
+    const { data, error } = await supabase.auth.verifyOtp({ email: email.trim(), token: otp.trim(), type: "email" });
     setBusy(false);
-    if (error) {
-      setToast("That code could not be verified: " + error.message);
-      return;
-    }
-    setUser(data.user);
-    setAuthStep("signed-in");
+    if (error) { setToast("That code could not be verified: " + error.message); return; }
+    setUser(data.user); setAuthStep("signed-in");
     setToast("✅ Signed in. You can now submit your picks.");
   }
 
   async function submit() {
     if (submitted || busy) return;
-    if (!user) {
-      setToast("Sign in with your email before submitting.");
-      return;
-    }
-    if (!playerName.trim()) {
-      setToast("Enter your name before submitting.");
-      return;
-    }
-    if (!selectedBooster) {
-      setToast("Choose a booster club before submitting.");
-      return;
-    }
-    if (pickedCount !== games.length) {
-      setToast(`Pick ${games.length - pickedCount} more game(s) to submit.`);
-      return;
-    }
+    if (!user) { setToast("Sign in with your email before submitting."); return; }
+    if (!playerName.trim()) { setToast("Enter your name before submitting."); return; }
+    if (!selectedBooster) { setToast("Choose a booster club before submitting."); return; }
+    if (pickedCount !== games.length) { setToast(`Pick ${games.length - pickedCount} more game(s) to submit.`); return; }
 
-    setBusy(true);
-    setToast("Saving your picks...");
+    setBusy(true); setToast("Saving your picks...");
 
-    const { data: player, error: playerError } = await supabase
-      .from("players")
-      .upsert({
-        user_id: user.id,
-        display_name: playerName.trim(),
-        email: user.email,
-        booster_name: selectedBooster.name || "",
-        school_name: selectedBooster.school || "",
-      }, { onConflict: "user_id" })
-      .select("id")
-      .single();
+    const { data: player, error: playerError } = await supabase.from("players").upsert({
+      user_id: user.id,
+      display_name: playerName.trim(),
+      email: user.email,
+      booster_name: selectedBooster.name || "",
+      school_name: selectedBooster.school || "",
+    }, { onConflict: "user_id" }).select("id").single();
 
-    if (playerError) {
-      setBusy(false);
-      setToast("Could not save your player profile: " + playerError.message);
-      return;
-    }
+    if (playerError) { setBusy(false); setToast("Could not save your player profile: " + playerError.message); return; }
 
-    const gameRows = games.map((g) => ({
-      season: 2026,
-      week: CURRENT_WEEK,
-      away_team: g.away,
-      home_team: g.home,
-    }));
+    const { data: dbGames, error: gamesError } = await supabase.from("games").select("id,away_team,home_team").eq("season", 2026).eq("week", CURRENT_WEEK);
+    if (gamesError) { setBusy(false); setToast("Could not load this week's games: " + gamesError.message); return; }
 
-    const { data: dbGames, error: gamesError } = await supabase
-      .from("games")
-      .select("id,away_team,home_team")
-      .eq("season", 2026)
-      .eq("week", CURRENT_WEEK);
+    const existingGames = new Map((dbGames || []).map((g) => [`${g.away_team}|${g.home_team}`, g]));
+    const missingGames = games.filter((g) => !existingGames.has(`${g.away}|${g.home}`));
+    if (missingGames.length) { setBusy(false); setToast("Weekly games need to be synced by the Booster Bowl admin before picks can be submitted."); return; }
 
-    if (gamesError) {
-      setBusy(false);
-      setToast("Could not load this week's games: " + gamesError.message);
-      return;
-    }
-
-    const existing = new Map((dbGames || []).map((g) => [`${g.away_team}|${g.home_team}`, g]));
-    const missing = gameRows.filter((g) => !existing.has(`${g.away_team}|${g.home_team}`));
-
-    if (missing.length) {
-      setBusy(false);
-      setToast("Weekly games need to be synced by the Booster Bowl admin before picks can be submitted.");
-      return;
-    }
-
-    const rows = games.map((g) => {
-      const dbGame = existing.get(`${g.away}|${g.home}`);
-      return {
-        player_id: player.id,
-        game_id: dbGame.id,
-        selected_team: picks[g.id] === "home" ? g.home : g.away,
-      };
+    const desiredRows = games.map((g) => {
+      const dbGame = existingGames.get(`${g.away}|${g.home}`);
+      return { player_id: player.id, game_id: dbGame.id, selected_team: picks[g.id] === "home" ? g.home : g.away };
     });
 
-    // A first-time submission is an INSERT. Using UPSERT here makes Postgres
-    // evaluate UPDATE/conflict RLS paths too, which can reject otherwise valid
-    // new rows. Each player submits once per game, so INSERT is the correct path.
-    const { error: picksError } = await supabase
+    // Read this player's existing picks first. Insert only missing games and
+    // update only changed games. This keeps the unique constraint intact and
+    // avoids sending existing rows through the INSERT RLS path again.
+    const gameIds = desiredRows.map((row) => row.game_id);
+    const { data: existingPicks, error: existingPicksError } = await supabase
       .from("picks")
-      .insert(rows);
+      .select("id,game_id,selected_team")
+      .eq("player_id", player.id)
+      .in("game_id", gameIds);
 
-    setBusy(false);
-    if (picksError) {
-      setToast("Could not save your picks: " + picksError.message);
-      return;
+    if (existingPicksError) { setBusy(false); setToast("Could not check your saved picks: " + existingPicksError.message); return; }
+
+    const savedByGame = new Map((existingPicks || []).map((row) => [row.game_id, row]));
+    const toInsert = desiredRows.filter((row) => !savedByGame.has(row.game_id));
+    const toUpdate = desiredRows.filter((row) => {
+      const saved = savedByGame.get(row.game_id);
+      return saved && saved.selected_team !== row.selected_team;
+    });
+
+    if (toInsert.length) {
+      const { error } = await supabase.from("picks").insert(toInsert);
+      if (error) { setBusy(false); setToast("Could not save your new picks: " + error.message); return; }
     }
 
-    setSubmitted(true);
-    setToast("🏈 Picks saved! You're officially in the Booster Bowl.");
+    for (const row of toUpdate) {
+      const saved = savedByGame.get(row.game_id);
+      const { error } = await supabase.from("picks").update({ selected_team: row.selected_team }).eq("id", saved.id).eq("player_id", player.id);
+      if (error) { setBusy(false); setToast("Some picks were already saved, but a changed pick could not be updated: " + error.message); return; }
+    }
+
+    setBusy(false); setSubmitted(true);
+    setToast(toInsert.length || toUpdate.length ? "🏈 Picks saved! You're officially in the Booster Bowl." : "🏈 Your picks were already saved. You're officially in the Booster Bowl.");
   }
 
   return (
@@ -214,66 +165,29 @@ export default function Picks() {
         <h2 style={{ marginTop: 6 }}>12 Best VHSL Matchups</h2>
         <p style={{ marginTop: 6, opacity: 0.9 }}>Week {CURRENT_WEEK} — {PICKS_OPEN ? "Picks are OPEN" : "Picks are LOCKED"}.</p>
         <p style={{ marginTop: 6, opacity: 0.8 }}>{PICKS_DEADLINE_TEXT}</p>
-
         <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
           <input value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Your name" disabled={submitted} style={{ padding: 12, borderRadius: 10, border: "1px solid #ccc", fontSize: 16 }} />
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" disabled={authStep !== "email" || submitted} style={{ padding: 12, borderRadius: 10, border: "1px solid #ccc", fontSize: 16 }} />
-
           {!user && authStep === "email" ? <button className="button" onClick={sendCode} disabled={busy}>{busy ? "Sending..." : "Email Me a Sign-In Code"}</button> : null}
-
-          {!user && authStep === "otp" ? (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <input inputMode="numeric" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="8-digit email code" style={{ flex: 1, minWidth: 190, padding: 12, borderRadius: 10, border: "1px solid #ccc", fontSize: 16 }} />
-              <button className="button" onClick={verifyCode} disabled={busy}>{busy ? "Checking..." : "Verify Code"}</button>
-            </div>
-          ) : null}
-
+          {!user && authStep === "otp" ? <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><input inputMode="numeric" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="8-digit email code" style={{ flex: 1, minWidth: 190, padding: 12, borderRadius: 10, border: "1px solid #ccc", fontSize: 16 }} /><button className="button" onClick={verifyCode} disabled={busy}>{busy ? "Checking..." : "Verify Code"}</button></div> : null}
           {user ? <div style={{ fontWeight: 700 }}>✅ Signed in as {user.email}</div> : null}
         </div>
-
-        {selectedBooster ? (
-          <p style={{ marginTop: 12, opacity: 0.9 }}>Supporting: <b>{selectedBooster.name}</b> ({selectedBooster.school}) — <a href="/boosters" style={{ textDecoration: "none" }}>change</a></p>
-        ) : (
-          <p style={{ marginTop: 12, opacity: 0.85 }}>No booster selected yet — <a href="/boosters" style={{ textDecoration: "none" }}>choose one first</a>.</p>
-        )}
-
+        {selectedBooster ? <p style={{ marginTop: 12, opacity: 0.9 }}>Supporting: <b>{selectedBooster.name}</b> ({selectedBooster.school}) — <a href="/boosters" style={{ textDecoration: "none" }}>change</a></p> : <p style={{ marginTop: 12, opacity: 0.85 }}>No booster selected yet — <a href="/boosters" style={{ textDecoration: "none" }}>choose one first</a>.</p>}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
           <div style={{ opacity: 0.9 }}>Picks: <b>{pickedCount}</b> / {games.length}</div>
           <button className="button" onClick={submit} disabled={!PICKS_OPEN || submitted || busy}>{!PICKS_OPEN ? "Picks Locked" : submitted ? "Submitted ✅" : busy ? "Saving..." : "Submit Picks"}</button>
           <button className="button" onClick={clearAll} disabled={submitted || busy} style={{ opacity: submitted ? 0.6 : 1 }}>Clear</button>
           <a href="/" style={{ marginLeft: "auto", textDecoration: "none", opacity: 0.85 }}>← Back Home</a>
         </div>
-
         {toast ? <div style={{ marginTop: 12, padding: 12, borderRadius: 12, border: "1px solid #2a3b57" }}>{toast}</div> : null}
       </div>
-
       <div style={{ height: 18 }} />
-
       {games.map((g, index) => {
         const picked = picks[g.id];
-        return (
-          <div key={g.id} className="card">
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.7, marginBottom: 4 }}>GAME {index + 1} OF {games.length}</div>
-                <div style={{ fontSize: 14, opacity: 0.85 }}>Kickoff: {g.kickoff}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6 }}>{g.away} <span style={{ opacity: 0.7 }}>at</span> {g.home}</div>
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <PickButton label={`Pick ${g.away}`} active={picked === "away"} onClick={() => choose(g.id, "away")} disabled={submitted} />
-                <PickButton label={`Pick ${g.home}`} active={picked === "home"} onClick={() => choose(g.id, "home")} disabled={submitted} />
-              </div>
-            </div>
-            <div style={{ marginTop: 10, opacity: 0.9 }}>Your pick: <b>{picked ? (picked === "home" ? g.home : g.away) : "— (none yet)"}</b></div>
-          </div>
-        );
+        return <div key={g.id} className="card"><div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}><div><div style={{ fontSize: 13, fontWeight: 700, opacity: 0.7, marginBottom: 4 }}>GAME {index + 1} OF {games.length}</div><div style={{ fontSize: 14, opacity: 0.85 }}>Kickoff: {g.kickoff}</div><div style={{ fontSize: 22, fontWeight: 700, marginTop: 6 }}>{g.away} <span style={{ opacity: 0.7 }}>at</span> {g.home}</div></div><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><PickButton label={`Pick ${g.away}`} active={picked === "away"} onClick={() => choose(g.id, "away")} disabled={submitted} /><PickButton label={`Pick ${g.home}`} active={picked === "home"} onClick={() => choose(g.id, "home")} disabled={submitted} /></div></div><div style={{ marginTop: 10, opacity: 0.9 }}>Your pick: <b>{picked ? (picked === "home" ? g.home : g.away) : "— (none yet)"}</b></div></div>;
       })}
-
       <div style={{ height: 18 }} />
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>Booster Bowl</h2>
-        <p style={{ marginBottom: 0, lineHeight: 1.6 }}>Make your picks. Support your booster club. Compete for season-long bragging rights.</p>
-      </div>
+      <div className="card"><h2 style={{ marginTop: 0 }}>Booster Bowl</h2><p style={{ marginBottom: 0, lineHeight: 1.6 }}>Make your picks. Support your booster club. Compete for season-long bragging rights.</p></div>
     </div>
   );
 }
