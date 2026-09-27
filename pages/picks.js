@@ -190,9 +190,12 @@ export default function Picks() {
       };
     });
 
+    // A first-time submission is an INSERT. Using UPSERT here makes Postgres
+    // evaluate UPDATE/conflict RLS paths too, which can reject otherwise valid
+    // new rows. Each player submits once per game, so INSERT is the correct path.
     const { error: picksError } = await supabase
       .from("picks")
-      .upsert(rows, { onConflict: "player_id,game_id" });
+      .insert(rows);
 
     setBusy(false);
     if (picksError) {
