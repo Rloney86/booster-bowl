@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { CURRENT_WEEK } from "../lib/config";
 
 const BOOSTER_KEY = "bb_selected_booster";
+const SEASON = 2026;
 
 const BOOSTERS = [
   { id: "jmhs", name: "Big Blue Boosters", school: "John Marshall High School" },
@@ -21,7 +23,9 @@ export default function Leaderboard() {
   const [myAccuracy, setMyAccuracy] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
-  const [teamStats, setTeamStats] = useState([]);
+  const [seasonStats, setSeasonStats] = useState([]);
+  const [weekStats, setWeekStats] = useState([]);
+  const [view, setView] = useState("week");
   const [teamStatsLive, setTeamStatsLive] = useState(false);
   const [teamStatsMessage, setTeamStatsMessage] = useState("");
   const [sortBy, setSortBy] = useState("rating");
@@ -31,12 +35,17 @@ export default function Leaderboard() {
     if (b) setMyBooster(b);
     let cancelled = false;
 
-    async function loadLeaderboard() {
+    async function loadLeaderboards() {
       try {
-        const { data, error } = await supabase.rpc("get_booster_leaderboard");
-        if (error) throw error;
+        const [seasonResult, weekResult] = await Promise.all([
+          supabase.rpc("get_booster_leaderboard"),
+          supabase.rpc("get_booster_leaderboard_week", { p_season: SEASON, p_week: CURRENT_WEEK }),
+        ]);
+        if (seasonResult.error) throw seasonResult.error;
+        if (weekResult.error) throw weekResult.error;
         if (!cancelled) {
-          setTeamStats(data || []);
+          setSeasonStats(seasonResult.data || []);
+          setWeekStats(weekResult.data || []);
           setTeamStatsLive(true);
           setTeamStatsMessage("");
         }
@@ -57,19 +66,16 @@ export default function Leaderboard() {
         const user = sessionData?.session?.user;
         if (!user) return;
 
-        const { data: player, error: playerError } = await supabase
-          .from("players").select("id").eq("user_id", user.id).maybeSingle();
+        const { data: player, error: playerError } = await supabase.from("players").select("id").eq("user_id", user.id).maybeSingle();
         if (playerError) throw playerError;
         if (!player) return;
 
-        const { data: savedPicks, error: picksError } = await supabase
-          .from("picks").select("game_id,selected_team").eq("player_id", player.id);
+        const { data: savedPicks, error: picksError } = await supabase.from("picks").select("game_id,selected_team").eq("player_id", player.id);
         if (picksError) throw picksError;
         if (!savedPicks?.length) return;
 
         const gameIds = [...new Set(savedPicks.map((p) => p.game_id))];
-        const { data: finalGames, error: gamesError } = await supabase
-          .from("games").select("id,winner,is_final").in("id", gameIds).eq("is_final", true);
+        const { data: finalGames, error: gamesError } = await supabase.from("games").select("id,winner,is_final").in("id", gameIds).eq("is_final", true);
         if (gamesError) throw gamesError;
 
         const winners = new Map((finalGames || []).map((g) => [String(g.id), g.winner]));
@@ -84,12 +90,13 @@ export default function Leaderboard() {
       }
     }
 
-    loadLeaderboard();
+    loadLeaderboards();
     loadMyStats();
     return () => { cancelled = true; };
   }, []);
 
-  const liveByName = useMemo(() => new Map((teamStats || []).map((row) => [row.booster_name, row])), [teamStats]);
+  const activeStats = view === "week" ? weekStats : seasonStats;
+  const liveByName = useMemo(() => new Map((activeStats || []).map((row) => [row.booster_name, row])), [activeStats]);
 
   const computedBoosters = useMemo(() => BOOSTERS.map((b) => {
     const live = liveByName.get(b.name);
@@ -105,13 +112,9 @@ export default function Leaderboard() {
   }), [liveByName]);
 
   const sortedBoosters = useMemo(() => {
-    // Defensive de-dupe: one rendered card per canonical booster id.
     const arr = [...new Map(computedBoosters.map((b) => [b.id, b])).values()];
-    if (sortBy === "rating") {
-      arr.sort((a, b) => (b.rating - a.rating) || (b.correctPicks - a.correctPicks) || (b.supporters - a.supporters) || a.name.localeCompare(b.name));
-    } else {
-      arr.sort((a, b) => (b.supporters - a.supporters) || (b.totalPicks - a.totalPicks) || (b.rating - a.rating) || a.name.localeCompare(b.name));
-    }
+    if (sortBy === "rating") arr.sort((a, b) => (b.rating - a.rating) || (b.correctPicks - a.correctPicks) || (b.supporters - a.supporters) || a.name.localeCompare(b.name));
+    else arr.sort((a, b) => (b.supporters - a.supporters) || (b.totalPicks - a.totalPicks) || (b.rating - a.rating) || a.name.localeCompare(b.name));
     return arr;
   }, [computedBoosters, sortBy]);
 
@@ -119,17 +122,19 @@ export default function Leaderboard() {
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
       <section className="card">
         <h1 style={{ marginTop: 0 }}>Booster Bowl Leaderboard</h1>
-        <p style={{ opacity: 0.9 }}>Season 2026 — Live Team Standings</p>
+        <p style={{ opacity: 0.9 }}>Season {SEASON} — {view === "week" ? `Week ${CURRENT_WEEK} Standings` : "Season Standings"}</p>
         {teamStatsMessage ? <p style={{ marginTop: 8, opacity: 0.75 }}>{teamStatsMessage}</p> : null}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-          <Link href="/" className="button">← Back Home</Link>
-          <Link href="/booster" className="button">Choose Booster</Link>
-          <Link href="/picks" className="button">Make Picks</Link>
+          <Link href="/" className="button">← Back Home</Link><Link href="/booster" className="button">Choose Booster</Link><Link href="/picks" className="button">Make Picks</Link>
         </div>
-        <div style={{ marginTop: 14, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+          <button className="button" onClick={() => setView("week")} style={{ opacity: view === "week" ? 1 : 0.65 }}>🏈 Week {CURRENT_WEEK}</button>
+          <button className="button" onClick={() => setView("season")} style={{ opacity: view === "season" ? 1 : 0.65 }}>🏆 Season</button>
+        </div>
+        <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ opacity: 0.9 }}>Sort by:</div>
-          <button className="button" onClick={() => setSortBy("rating")} style={{ opacity: sortBy === "rating" ? 1 : 0.75 }}>🎯 Rating</button>
-          <button className="button" onClick={() => setSortBy("activity")} style={{ opacity: sortBy === "activity" ? 1 : 0.75 }}>👥 Activity</button>
+          <button className="button" onClick={() => setSortBy("rating")} style={{ opacity: sortBy === "rating" ? 1 : 0.65 }}>🎯 Rating</button>
+          <button className="button" onClick={() => setSortBy("activity")} style={{ opacity: sortBy === "activity" ? 1 : 0.65 }}>👥 Activity</button>
         </div>
       </section>
 
@@ -137,28 +142,13 @@ export default function Leaderboard() {
       <section className="card">
         <h2 style={{ marginTop: 0 }}>My Stat Book</h2>
         {myBooster ? <p style={{ marginTop: 6, opacity: 0.9 }}>Selected booster: <b>{myBooster.name}</b> ({myBooster.school})</p> : <p style={{ marginTop: 6, opacity: 0.85 }}>No booster selected yet.</p>}
-        {statsLoading ? <p style={{ marginTop: 10, opacity: 0.85 }}>Loading your official results...</p>
-          : statsError ? <p style={{ marginTop: 10, opacity: 0.85 }}>Could not load your official results: {statsError}</p>
-          : myAccuracy ? <>
-              <p style={{ margin: "6px 0" }}>🎯 Booster Bowl Rating (completed games): <b>{myAccuracy.percent}%</b></p>
-              <p style={{ margin: "6px 0" }}>📊 Correct Picks: <b>{myAccuracy.correct}</b> / {myAccuracy.total}</p>
-            </>
-          : <p style={{ marginTop: 10, opacity: 0.85 }}>No completed picks yet — your rating will appear after a game is final.</p>}
+        {statsLoading ? <p style={{ marginTop: 10, opacity: 0.85 }}>Loading your official results...</p> : statsError ? <p style={{ marginTop: 10, opacity: 0.85 }}>Could not load your official results: {statsError}</p> : myAccuracy ? <><p style={{ margin: "6px 0" }}>🎯 Season Rating (completed games): <b>{myAccuracy.percent}%</b></p><p style={{ margin: "6px 0" }}>📊 Correct Picks: <b>{myAccuracy.correct}</b> / {myAccuracy.total}</p></> : <p style={{ marginTop: 10, opacity: 0.85 }}>No completed picks yet — your rating will appear after a game is final.</p>}
       </section>
 
       <div style={{ height: 18 }} />
       {!teamStatsLive ? <section className="card"><p style={{ margin: 0 }}>Live team standings are temporarily unavailable.</p></section> : null}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-        {sortedBoosters.map((b, index) => (
-          <div key={`booster-${b.id}`} className="card">
-            <h3 style={{ marginTop: 0 }}>#{index + 1} — {b.name}</h3>
-            <p style={{ margin: "6px 0", opacity: 0.8 }}>{b.school}</p>
-            <p style={{ margin: "6px 0" }}>🎯 Booster Bowl Rating: <b>{b.rating}%</b></p>
-            <p style={{ margin: "6px 0" }}>👥 Supporters: <b>{b.supporters}</b></p>
-            <p style={{ margin: "6px 0" }}>📊 Total Picks: <b>{b.totalPicks}</b></p>
-            <p style={{ margin: "6px 0" }}>✅ Completed Picks: <b>{b.correctPicks}</b> / {b.completedPicks}</p>
-          </div>
-        ))}
+        {sortedBoosters.map((b, index) => <div key={`booster-${b.id}`} className="card"><h3 style={{ marginTop: 0 }}>#{index + 1} — {b.name}</h3><p style={{ margin: "6px 0", opacity: 0.8 }}>{b.school}</p><p style={{ margin: "6px 0" }}>🎯 {view === "week" ? `Week ${CURRENT_WEEK}` : "Season"} Rating: <b>{b.rating}%</b></p><p style={{ margin: "6px 0" }}>👥 Supporters: <b>{b.supporters}</b></p><p style={{ margin: "6px 0" }}>📊 Total Picks: <b>{b.totalPicks}</b></p><p style={{ margin: "6px 0" }}>✅ Completed Picks: <b>{b.correctPicks}</b> / {b.completedPicks}</p></div>)}
       </section>
     </main>
   );
