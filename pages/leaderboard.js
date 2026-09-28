@@ -63,35 +63,57 @@ export default function Leaderboard() {
     const d = safeParseJSON(localStorage.getItem(DONATIONS_KEY), {});
     setDonationsByBooster(d || {});
 
+    let cancelled = false;
+
     async function loadMyStats() {
       setStatsLoading(true);
       setStatsError("");
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) { setStatsError(authError.message); setStatsLoading(false); return; }
-      const user = authData?.user;
-      if (!user) { setStatsLoading(false); return; }
 
-      const { data: player, error: playerError } = await supabase.from("players").select("id").eq("user_id", user.id).maybeSingle();
-      if (playerError) { setStatsError(playerError.message); setStatsLoading(false); return; }
-      if (!player) { setStatsLoading(false); return; }
+      try {
+        // Use the already-persisted browser session instead of getUser(), which
+        // performs a network auth validation and can leave this page waiting.
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        const user = sessionData?.session?.user;
+        if (!user) return;
 
-      const { data: savedPicks, error: picksError } = await supabase.from("picks").select("game_id,selected_team").eq("player_id", player.id);
-      if (picksError) { setStatsError(picksError.message); setStatsLoading(false); return; }
-      if (!savedPicks?.length) { setStatsLoading(false); return; }
+        const { data: player, error: playerError } = await supabase
+          .from("players")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (playerError) throw playerError;
+        if (!player) return;
 
-      const gameIds = [...new Set(savedPicks.map((p) => p.game_id))];
-      const { data: finalGames, error: gamesError } = await supabase.from("games").select("id,winner,is_final").in("id", gameIds).eq("is_final", true);
-      if (gamesError) { setStatsError(gamesError.message); setStatsLoading(false); return; }
+        const { data: savedPicks, error: picksError } = await supabase
+          .from("picks")
+          .select("game_id,selected_team")
+          .eq("player_id", player.id);
+        if (picksError) throw picksError;
+        if (!savedPicks?.length) return;
 
-      const winners = new Map((finalGames || []).map((g) => [g.id, g.winner]));
-      const completedPicks = savedPicks.filter((p) => winners.has(p.game_id));
-      const correct = completedPicks.filter((p) => p.selected_team === winners.get(p.game_id)).length;
-      const total = completedPicks.length;
-      setMyAccuracy({ correct, total, percent: total ? Math.round((correct / total) * 100) : 0 });
-      setStatsLoading(false);
+        const gameIds = [...new Set(savedPicks.map((p) => p.game_id))];
+        const { data: finalGames, error: gamesError } = await supabase
+          .from("games")
+          .select("id,winner,is_final")
+          .in("id", gameIds)
+          .eq("is_final", true);
+        if (gamesError) throw gamesError;
+
+        const winners = new Map((finalGames || []).map((g) => [String(g.id), g.winner]));
+        const completedPicks = savedPicks.filter((p) => winners.has(String(p.game_id)));
+        const correct = completedPicks.filter((p) => p.selected_team === winners.get(String(p.game_id))).length;
+        const total = completedPicks.length;
+        if (!cancelled) setMyAccuracy({ correct, total, percent: total ? Math.round((correct / total) * 100) : 0 });
+      } catch (error) {
+        if (!cancelled) setStatsError(error?.message || "Unable to load results.");
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
     }
 
     loadMyStats();
+    return () => { cancelled = true; };
   }, []);
 
   function addDonation(amount) {
