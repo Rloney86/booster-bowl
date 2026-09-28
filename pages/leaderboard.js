@@ -70,14 +70,20 @@ export default function Leaderboard() {
       setStatsLoading(true);
       setStatsError("");
       try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-        const user = sessionData?.session?.user;
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        const user = userData?.user;
         if (!user) return;
 
-        const { data: player, error: playerError } = await supabase.from("players").select("id").eq("user_id", user.id).maybeSingle();
+        const { data: player, error: playerError } = await supabase.from("players").select("id,booster_name,school_name").eq("user_id", user.id).maybeSingle();
         if (playerError) throw playerError;
         if (!player) return;
+
+        if (!cancelled && player.booster_name) {
+          const persistedBooster = { name: player.booster_name, school: player.school_name || "" };
+          setMyBooster(persistedBooster);
+          try { localStorage.setItem(BOOSTER_KEY, JSON.stringify(persistedBooster)); } catch {}
+        }
 
         const { data: savedPicks, error: picksError } = await supabase.from("picks").select("game_id,selected_team").eq("player_id", player.id);
         if (picksError) throw picksError;
