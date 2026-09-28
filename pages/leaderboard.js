@@ -105,7 +105,8 @@ export default function Leaderboard() {
   }), [liveByName]);
 
   const sortedBoosters = useMemo(() => {
-    const arr = [...computedBoosters];
+    // Defensive de-dupe: one rendered card per canonical booster id.
+    const arr = [...new Map(computedBoosters.map((b) => [b.id, b])).values()];
     if (sortBy === "rating") {
       arr.sort((a, b) => (b.rating - a.rating) || (b.correctPicks - a.correctPicks) || (b.supporters - a.supporters) || a.name.localeCompare(b.name));
     } else {
