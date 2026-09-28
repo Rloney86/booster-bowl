@@ -18,9 +18,18 @@ function safeParseJSON(raw, fallback) {
   try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
 }
 
+function calculateAccuracy(picks, games) {
+  const winners = new Map((games || []).filter((g) => g.is_final && g.winner).map((g) => [String(g.id), g.winner]));
+  const completed = (picks || []).filter((p) => winners.has(String(p.game_id)));
+  const correct = completed.filter((p) => p.selected_team === winners.get(String(p.game_id))).length;
+  const total = completed.length;
+  return { correct, total, percent: total ? Math.round((correct / total) * 100) : 0 };
+}
+
 export default function Leaderboard() {
   const [myBooster, setMyBooster] = useState(null);
-  const [myAccuracy, setMyAccuracy] = useState(null);
+  const [mySeasonAccuracy, setMySeasonAccuracy] = useState(null);
+  const [myWeekAccuracy, setMyWeekAccuracy] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
   const [seasonStats, setSeasonStats] = useState([]);
@@ -75,14 +84,20 @@ export default function Leaderboard() {
         if (!savedPicks?.length) return;
 
         const gameIds = [...new Set(savedPicks.map((p) => p.game_id))];
-        const { data: finalGames, error: gamesError } = await supabase.from("games").select("id,winner,is_final").in("id", gameIds).eq("is_final", true);
+        const { data: games, error: gamesError } = await supabase.from("games").select("id,winner,is_final,season,week").in("id", gameIds);
         if (gamesError) throw gamesError;
 
-        const winners = new Map((finalGames || []).map((g) => [String(g.id), g.winner]));
-        const completedPicks = savedPicks.filter((p) => winners.has(String(p.game_id)));
-        const correct = completedPicks.filter((p) => p.selected_team === winners.get(String(p.game_id))).length;
-        const total = completedPicks.length;
-        if (!cancelled) setMyAccuracy({ correct, total, percent: total ? Math.round((correct / total) * 100) : 0 });
+        const seasonGames = (games || []).filter((g) => Number(g.season) === SEASON);
+        const weekGames = seasonGames.filter((g) => Number(g.week) === Number(CURRENT_WEEK));
+        const seasonIds = new Set(seasonGames.map((g) => String(g.id)));
+        const weekIds = new Set(weekGames.map((g) => String(g.id)));
+        const seasonPicks = savedPicks.filter((p) => seasonIds.has(String(p.game_id)));
+        const weekPicks = savedPicks.filter((p) => weekIds.has(String(p.game_id)));
+
+        if (!cancelled) {
+          setMySeasonAccuracy(calculateAccuracy(seasonPicks, seasonGames));
+          setMyWeekAccuracy(calculateAccuracy(weekPicks, weekGames));
+        }
       } catch (error) {
         if (!cancelled) setStatsError(error?.message || "Unable to load results.");
       } finally {
@@ -96,19 +111,13 @@ export default function Leaderboard() {
   }, []);
 
   const activeStats = view === "week" ? weekStats : seasonStats;
+  const myAccuracy = view === "week" ? myWeekAccuracy : mySeasonAccuracy;
+  const statLabel = view === "week" ? `Week ${CURRENT_WEEK}` : "Season";
   const liveByName = useMemo(() => new Map((activeStats || []).map((row) => [row.booster_name, row])), [activeStats]);
 
   const computedBoosters = useMemo(() => BOOSTERS.map((b) => {
     const live = liveByName.get(b.name);
-    return {
-      ...b,
-      school: live?.school_name || b.school,
-      supporters: Number(live?.supporters || 0),
-      totalPicks: Number(live?.total_picks || 0),
-      completedPicks: Number(live?.completed_picks || 0),
-      correctPicks: Number(live?.correct_picks || 0),
-      rating: Number(live?.accuracy_percent || 0),
-    };
+    return { ...b, school: live?.school_name || b.school, supporters: Number(live?.supporters || 0), totalPicks: Number(live?.total_picks || 0), completedPicks: Number(live?.completed_picks || 0), correctPicks: Number(live?.correct_picks || 0), rating: Number(live?.accuracy_percent || 0) };
   }), [liveByName]);
 
   const sortedBoosters = useMemo(() => {
@@ -124,31 +133,22 @@ export default function Leaderboard() {
         <h1 style={{ marginTop: 0 }}>Booster Bowl Leaderboard</h1>
         <p style={{ opacity: 0.9 }}>Season {SEASON} — {view === "week" ? `Week ${CURRENT_WEEK} Standings` : "Season Standings"}</p>
         {teamStatsMessage ? <p style={{ marginTop: 8, opacity: 0.75 }}>{teamStatsMessage}</p> : null}
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-          <Link href="/" className="button">← Back Home</Link><Link href="/booster" className="button">Choose Booster</Link><Link href="/picks" className="button">Make Picks</Link>
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-          <button className="button" onClick={() => setView("week")} style={{ opacity: view === "week" ? 1 : 0.65 }}>🏈 Week {CURRENT_WEEK}</button>
-          <button className="button" onClick={() => setView("season")} style={{ opacity: view === "season" ? 1 : 0.65 }}>🏆 Season</button>
-        </div>
-        <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ opacity: 0.9 }}>Sort by:</div>
-          <button className="button" onClick={() => setSortBy("rating")} style={{ opacity: sortBy === "rating" ? 1 : 0.65 }}>🎯 Rating</button>
-          <button className="button" onClick={() => setSortBy("activity")} style={{ opacity: sortBy === "activity" ? 1 : 0.65 }}>👥 Activity</button>
-        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}><Link href="/" className="button">← Back Home</Link><Link href="/booster" className="button">Choose Booster</Link><Link href="/picks" className="button">Make Picks</Link></div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}><button className="button" onClick={() => setView("week")} style={{ opacity: view === "week" ? 1 : 0.65 }}>🏈 Week {CURRENT_WEEK}</button><button className="button" onClick={() => setView("season")} style={{ opacity: view === "season" ? 1 : 0.65 }}>🏆 Season</button></div>
+        <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}><div style={{ opacity: 0.9 }}>Sort by:</div><button className="button" onClick={() => setSortBy("rating")} style={{ opacity: sortBy === "rating" ? 1 : 0.65 }}>🎯 Rating</button><button className="button" onClick={() => setSortBy("activity")} style={{ opacity: sortBy === "activity" ? 1 : 0.65 }}>👥 Activity</button></div>
       </section>
 
       <div style={{ height: 18 }} />
       <section className="card">
         <h2 style={{ marginTop: 0 }}>My Stat Book</h2>
         {myBooster ? <p style={{ marginTop: 6, opacity: 0.9 }}>Selected booster: <b>{myBooster.name}</b> ({myBooster.school})</p> : <p style={{ marginTop: 6, opacity: 0.85 }}>No booster selected yet.</p>}
-        {statsLoading ? <p style={{ marginTop: 10, opacity: 0.85 }}>Loading your official results...</p> : statsError ? <p style={{ marginTop: 10, opacity: 0.85 }}>Could not load your official results: {statsError}</p> : myAccuracy ? <><p style={{ margin: "6px 0" }}>🎯 Season Rating (completed games): <b>{myAccuracy.percent}%</b></p><p style={{ margin: "6px 0" }}>📊 Correct Picks: <b>{myAccuracy.correct}</b> / {myAccuracy.total}</p></> : <p style={{ marginTop: 10, opacity: 0.85 }}>No completed picks yet — your rating will appear after a game is final.</p>}
+        {statsLoading ? <p style={{ marginTop: 10, opacity: 0.85 }}>Loading your official results...</p> : statsError ? <p style={{ marginTop: 10, opacity: 0.85 }}>Could not load your official results: {statsError}</p> : myAccuracy?.total ? <><p style={{ margin: "6px 0" }}>🎯 {statLabel} Rating (completed games): <b>{myAccuracy.percent}%</b></p><p style={{ margin: "6px 0" }}>📊 Correct Picks: <b>{myAccuracy.correct}</b> / {myAccuracy.total}</p></> : <p style={{ marginTop: 10, opacity: 0.85 }}>No completed {statLabel.toLowerCase()} picks yet — your rating will appear after a game is final.</p>}
       </section>
 
       <div style={{ height: 18 }} />
       {!teamStatsLive ? <section className="card"><p style={{ margin: 0 }}>Live team standings are temporarily unavailable.</p></section> : null}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-        {sortedBoosters.map((b, index) => <div key={`booster-${b.id}`} className="card"><h3 style={{ marginTop: 0 }}>#{index + 1} — {b.name}</h3><p style={{ margin: "6px 0", opacity: 0.8 }}>{b.school}</p><p style={{ margin: "6px 0" }}>🎯 {view === "week" ? `Week ${CURRENT_WEEK}` : "Season"} Rating: <b>{b.rating}%</b></p><p style={{ margin: "6px 0" }}>👥 Supporters: <b>{b.supporters}</b></p><p style={{ margin: "6px 0" }}>📊 Total Picks: <b>{b.totalPicks}</b></p><p style={{ margin: "6px 0" }}>✅ Completed Picks: <b>{b.correctPicks}</b> / {b.completedPicks}</p></div>)}
+        {sortedBoosters.map((b, index) => <div key={`booster-${b.id}`} className="card"><h3 style={{ marginTop: 0 }}>#{index + 1} — {b.name}</h3><p style={{ margin: "6px 0", opacity: 0.8 }}>{b.school}</p><p style={{ margin: "6px 0" }}>🎯 {statLabel} Rating: <b>{b.rating}%</b></p><p style={{ margin: "6px 0" }}>👥 Supporters: <b>{b.supporters}</b></p><p style={{ margin: "6px 0" }}>📊 Total Picks: <b>{b.totalPicks}</b></p><p style={{ margin: "6px 0" }}>✅ Completed Picks: <b>{b.correctPicks}</b> / {b.completedPicks}</p></div>)}
       </section>
     </main>
   );
