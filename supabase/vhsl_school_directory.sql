@@ -53,8 +53,7 @@ $$;
 revoke all on function public.get_vhsl_school_directory() from public;
 grant execute on function public.get_vhsl_school_directory() to authenticated;
 
--- Optional helper for ingestion jobs/admin SQL. It normalizes whitespace/case for
--- matching without changing the human-readable school_name.
+-- Normalized key used to safely match schedule team names to directory schools.
 create or replace function public.normalize_school_name(p_name text)
 returns text
 language sql
@@ -64,7 +63,109 @@ as $$
   select lower(regexp_replace(trim(p_name), '\s+', ' ', 'g'));
 $$;
 
+-- Link each weekly game to canonical away/home schools without removing the
+-- existing text team names. This keeps the current picks/scoring flow compatible.
+alter table public.games add column if not exists away_school_id bigint;
+alter table public.games add column if not exists home_school_id bigint;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'games_away_school_id_fkey'
+  ) then
+    alter table public.games
+      add constraint games_away_school_id_fkey
+      foreign key (away_school_id) references public.vhsl_schools(id)
+      on update cascade on delete set null;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'games_home_school_id_fkey'
+  ) then
+    alter table public.games
+      add constraint games_home_school_id_fkey
+      foreign key (home_school_id) references public.vhsl_schools(id)
+      on update cascade on delete set null;
+  end if;
+end $$;
+
+create index if not exists games_away_school_id_idx on public.games (away_school_id);
+create index if not exists games_home_school_id_idx on public.games (home_school_id);
+
+-- Safe/idempotent backfill. Only exact normalized-name matches are linked.
+-- Unmatched schedule names remain NULL so they can be reviewed instead of being
+-- incorrectly attached to a similarly named school.
+update public.games g
+set away_school_id = s.id
+from public.vhsl_schools s
+where g.away_school_id is null
+  and public.normalize_school_name(g.away_team) = s.canonical_name;
+
+update public.games g
+set home_school_id = s.id
+from public.vhsl_schools s
+where g.home_school_id is null
+  and public.normalize_school_name(g.home_team) = s.canonical_name;
+
+-- App-facing weekly catalog. Canonical school metadata takes priority, while the
+-- old game metadata remains a fallback during migration.
+create or replace function public.get_pick_board_games(p_season integer, p_week integer)
+returns table (
+  id bigint,
+  away_team text,
+  home_team text,
+  kickoff_at timestamptz,
+  sport text,
+  district text,
+  away_class text,
+  away_region text,
+  home_class text,
+  home_region text,
+  is_featured boolean
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    g.id,
+    coalesce(a.school_name, g.away_team) as away_team,
+    coalesce(h.school_name, g.home_team) as home_team,
+    g.kickoff_at,
+    g.sport,
+    coalesce(h.district, a.district, g.district) as district,
+    coalesce(a.classification, g.away_class) as away_class,
+    coalesce(a.region, g.away_region) as away_region,
+    coalesce(h.classification, g.home_class) as home_class,
+    coalesce(h.region, g.home_region) as home_region,
+    g.is_featured
+  from public.games g
+  left join public.vhsl_schools a on a.id = g.away_school_id and a.active = true
+  left join public.vhsl_schools h on h.id = g.home_school_id and h.active = true
+  where g.season = p_season and g.week = p_week
+  order by coalesce(g.kickoff_at, 'infinity'::timestamptz),
+           coalesce(a.school_name, g.away_team),
+           coalesce(h.school_name, g.home_team);
+$$;
+
+revoke all on function public.get_pick_board_games(integer, integer) from public;
+grant execute on function public.get_pick_board_games(integer, integer) to authenticated;
+
+-- Admin/ingestion diagnostic: every schedule team name that failed to match a
+-- canonical school. This is intentionally not granted to authenticated users.
+create or replace view public.unmatched_game_schools as
+select distinct g.away_team as schedule_name, 'away'::text as side
+from public.games g
+where g.away_school_id is null
+union
+select distinct g.home_team as schedule_name, 'home'::text as side
+from public.games g
+where g.home_school_id is null;
+
 comment on table public.vhsl_schools is
   'Canonical VHSL school metadata used to build Booster Bowl district, region, classification and school pick boards.';
 comment on column public.vhsl_schools.canonical_name is
   'Normalized matching key, normally produced with public.normalize_school_name(school_name).';
+comment on view public.unmatched_game_schools is
+  'Schedule team names that are not yet linked to a canonical VHSL school.';
