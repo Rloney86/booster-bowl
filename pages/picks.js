@@ -43,6 +43,24 @@ export default function Picks() {
 
   useEffect(() => { let alive = true; (async () => { const { data, error } = await supabase.rpc("get_pick_board_games", { p_season: 2026, p_week: CURRENT_WEEK }); if (!alive || error || !data?.length) return; const next = makeBoards(data); if (!next.length) return; setBoards(next); setBoardId((current) => next.some((b) => b.id === current) ? current : ""); })(); return () => { alive = false; }; }, []);
   useEffect(() => { if (board?.group) setActiveGroup(board.group); }, [board?.group]);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!user?.id || !board || !games.length) { if (alive) setSubmitted(false); return; }
+      const { data: player, error: playerError } = await supabase.from("players").select("id").eq("user_id", user.id).maybeSingle();
+      if (!alive || playerError || !player?.id) { if (alive) setSubmitted(false); return; }
+      const gameIds = games.map((g) => g.id);
+      const { data: savedPicks, error: picksError } = await supabase.from("picks").select("game_id,selected_team").eq("player_id", player.id).in("game_id", gameIds);
+      if (!alive || picksError) { if (alive) setSubmitted(false); return; }
+      const savedByGame = new Map((savedPicks || []).map((p) => [p.game_id, p.selected_team]));
+      const restored = {};
+      games.forEach((g) => { const team = savedByGame.get(g.id); if (team === g.home) restored[g.id] = "home"; else if (team === g.away) restored[g.id] = "away"; });
+      if (!alive) return;
+      setPicks((current) => { const next = { ...current, ...restored }; try { localStorage.setItem(PICKS_KEY, JSON.stringify(next)); } catch {} return next; });
+      setSubmitted(gameIds.every((id) => savedByGame.has(id)));
+    })();
+    return () => { alive = false; };
+  }, [user?.id, boardId, boards]);
 
   const availableGroups = PICK_BOARD_GROUPS.filter((group) => boards.some((b) => b.group === group));
   const groupBoards = boards.filter((b) => b.group === activeGroup);
