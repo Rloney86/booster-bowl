@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup
+from vhsl_official_source import parse_official_schedule
 
 SEASON=2026
 SOURCE="VirginiaPreps / On3"
@@ -74,41 +75,9 @@ def apply_overrides(raw):
     return out
 
 def parse_schedule():
-    r=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/4.0"});r.raise_for_status()
-    soup=BeautifulSoup(r.text,"html.parser");article=soup.find("article") or soup
-    lines=[clean(x) for x in article.get_text("\n").splitlines() if clean(x)]
-    current_class=current_region=current_team=None;teams={};raw=[]
-    for line in lines:
-        m=re.fullmatch(r"CLASS\s+([1-6]):?",line.upper())
-        if m:current_class=int(m.group(1));current_region=None;current_team=None;continue
-        m=re.fullmatch(r"REGION\s+([1-6])([A-D])",line.upper())
-        if m:current_class=int(m.group(1));current_region=m.group(2);current_team=None;continue
-        if current_class not in TARGET_CLASSES:continue
-        if looks_like_team_heading(line):current_team=display_team(line);teams[team_key(current_team)]=(current_class,current_region);continue
-        if not current_team:continue
-        m=re.match(r"^(Sep|Oct|Nov)\s+(\d{1,2}),\s+(.+)$",line,re.I)
-        if not m:continue
-        month,day,opp=m.groups();opp=clean(opp)
-        if re.search(r"\b(canceled|cancelled|ppd\.?|susp\.?|postponed)\b",opp,re.I):continue
-        opp=re.sub(r",\s*.*$","",opp).strip();away=opp.lower().startswith("at ");opponent=display_team(opp[3:].strip() if away else opp)
-        gd=date(SEASON,MONTHS[month.title()],int(day));week=week_for_date(gd)
-        if week:raw.append({"date":gd.isoformat(),"week":week,"away_team":current_team if away else opponent,"home_team":opponent if away else current_team,"listed_by":current_team})
-    raw=apply_overrides(raw)
-    unique={};conflicts=[];ambiguous=set()
-    for game in raw:
-        key=matchup_key(game["date"],game["away_team"],game["home_team"]);prior=unique.get(key)
-        if prior and (team_key(prior["away_team"])!=team_key(game["away_team"]) or team_key(prior["home_team"])!=team_key(game["home_team"])):
-            conflicts.append((prior,game));ambiguous.add(key);continue
-        unique[key]=game
-    if conflicts:
-        print(f"WARNING: {len(conflicts)} home/away source conflicts require verification:",file=sys.stderr)
-        for a,b in conflicts:print(f"  W{a['week']} {a['date']}: {a['away_team']} at {a['home_team']} <-> {b['away_team']} at {b['home_team']}",file=sys.stderr)
-    now=datetime.now(tz=ZoneInfo("UTC")).isoformat();rows=[]
-    for key,g in unique.items():
-        if key in ambiguous:continue
-        am=teams.get(team_key(g["away_team"]));hm=teams.get(team_key(g["home_team"]));kick=datetime.fromisoformat(g["date"]+"T19:00:00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
-        rows.append({"season":SEASON,"week":g["week"],"away_team":g["away_team"],"home_team":g["home_team"],"kickoff_at":kick,"sport":"football","away_class":f"Class {am[0]}" if am else None,"away_region":f"Region {am[1]}" if am and am[1] else None,"home_class":f"Class {hm[0]}" if hm else None,"home_region":f"Region {hm[1]}" if hm and hm[1] else None,"source":SOURCE,"source_game_id":stable_source_id(g["date"],g["away_team"],g["home_team"]),"source_url":SOURCE_URL,"synced_at":now,"sync_status":"scheduled"})
-    return rows,conflicts
+    # Official VHSL master schedule is now authoritative for varsity matchups,
+    # dates, kickoff times, home/away orientation, and class/region metadata.
+    return parse_official_schedule(), []
 
 def varsity_conflicts(rows):
     tw=defaultdict(list)
