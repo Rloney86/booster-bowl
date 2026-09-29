@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [main]
+    branches: [main, fix/varsity-schedule-overrides]
     paths:
       - "scripts/sync_vhsl_schedule.py"
       - ".github/workflows/sync-vhsl-schedule.yml"
@@ -51,5 +51,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
+          DRY_RUN: ${{ github.ref != 'refs/heads/main' && '1' || (github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0') }}
         run: python scripts/sync_vhsl_schedule.py
