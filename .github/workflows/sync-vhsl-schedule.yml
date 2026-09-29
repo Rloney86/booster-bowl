@@ -1,0 +1,25 @@
+name: Sync VHSL football schedule
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Refresh every Monday and Thursday during the football season.
+    - cron: "15 10 * 8-11 1,4"
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests beautifulsoup4
+      - name: Sync remaining VHSL Class 2-6 games to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/sync_vhsl_schedule.py
