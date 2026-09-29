@@ -47,7 +47,7 @@ export default function Leaderboard() {
     async function loadLeaderboards() {
       try {
         const [seasonResult, weekResult] = await Promise.all([
-          supabase.rpc("get_booster_leaderboard"),
+          supabase.rpc("get_booster_leaderboard_season", { p_season: SEASON }),
           supabase.rpc("get_booster_leaderboard_week", { p_season: SEASON, p_week: CURRENT_WEEK }),
         ]);
         if (seasonResult.error) throw seasonResult.error;
@@ -154,7 +154,7 @@ export default function Leaderboard() {
       <div style={{ height: 18 }} />
       {!teamStatsLive ? <section className="card"><p style={{ margin: 0 }}>Live team standings are temporarily unavailable.</p></section> : null}
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-        {sortedBoosters.map((b, index) => <div key={`booster-${b.id}`} className="card"><h3 style={{ marginTop: 0 }}>#{index + 1} — {b.name}</h3><p style={{ margin: "6px 0", opacity: 0.8 }}>{b.school}</p><p style={{ margin: "6px 0" }}>🎯 {statLabel} Rating: <b>{b.rating}%</b></p><p style={{ margin: "6px 0" }}>👥 Supporters: <b>{b.supporters}</b></p><p style={{ margin: "6px 0" }}>📊 Total Picks: <b>{b.totalPicks}</b></p><p style={{ margin: "6px 0" }}>✅ Completed Picks: <b>{b.correctPicks}</b> / {b.completedPicks}</p></div>)}
+        {sortedBoosters.map((b, index) => <div key={`booster-${b.id}`} className="card"><h3 style={{ marginTop: 0 }}>#{index + 1} — {b.name}</h3><p style={{ margin: "6px 0", opacity: 0.8 }}>{b.school}</p><p style={{ margin: "6px 0" }}>🎯 {statLabel} Rating: <b>{b.rating}%</b></p><p style={{ margin: "6px 0" }}>👥 Supporters: <b>{b.supporters}</b></p><p style={{ margin: "6px 0" }}>📊 Total Picks: <b>{b.totalPicks}</b></p><p style={{ margin: "6px 0" }}>✅ Correct Picks: <b>{b.correctPicks}</b> / {b.completedPicks}</p></div>)}
       </section>
     </main>
   );
