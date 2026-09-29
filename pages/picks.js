@@ -7,7 +7,7 @@ const STORAGE_KEY = "bb_selected_booster";
 const PLAYER_KEY = "bb_player_profile";
 const PICKS_KEY = "bb_weekly_picks";
 const BOARD_KEY = "bb_pick_board";
-const ICONS = { Featured: "⭐", District: "📍", Region: "🗺️", Classification: "🏆", School: "🏫" };
+const ICONS = { Featured: "⭐", District: "📍", Classification: "🏆", School: "🏫" };
 const slug = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const uniq = (rows) => Array.from(new Map(rows.map((g) => [g.id, g])).values());
 
@@ -17,10 +17,34 @@ function makeBoards(rows) {
   const featured = games.filter((g) => g.isFeatured);
   if (featured.length) boards.push({ id: "featured", type: "featured", group: "Featured", label: "Virginia Games of the Week", shortLabel: "Featured", description: "Booster Bowl's statewide featured matchups.", games: featured });
   [...new Set(games.map((g) => g.district).filter(Boolean))].sort().forEach((d) => boards.push({ id: `district-${slug(d)}`, type: "district", group: "District", label: `${d} District`, shortLabel: d, description: `Week ${CURRENT_WEEK} games involving ${d} District programs.`, games: games.filter((g) => g.district === d) }));
-  const regionKeys = new Set(); games.forEach((g) => { if (g.awayClass && g.awayRegion) regionKeys.add(`${g.awayClass}|${g.awayRegion}`); if (g.homeClass && g.homeRegion) regionKeys.add(`${g.homeClass}|${g.homeRegion}`); });
-  [...regionKeys].sort().forEach((key) => { const [c, r] = key.split("|"); boards.push({ id: `region-${slug(c)}-${slug(r)}`, type: "region", group: "Region", label: `${c} • ${r}`, shortLabel: `${c} ${r}`, description: `Games involving ${c} ${r} programs.`, games: games.filter((g) => (g.awayClass === c && g.awayRegion === r) || (g.homeClass === c && g.homeRegion === r)) }); });
-  const classes = new Set(); games.forEach((g) => { if (g.awayClass) classes.add(g.awayClass); if (g.homeClass) classes.add(g.homeClass); });
-  [...classes].sort().forEach((c) => boards.push({ id: `class-${slug(c)}`, type: "class", group: "Classification", label: `VHSL ${c}`, shortLabel: c, description: `${c} games available this week.`, games: games.filter((g) => g.awayClass === c || g.homeClass === c) }));
+  const classificationKeys = new Set();
+  games.forEach((g) => {
+    if (g.awayClass && g.awayRegion) classificationKeys.add(`${g.awayClass}|${g.awayRegion}`);
+    if (g.homeClass && g.homeRegion) classificationKeys.add(`${g.homeClass}|${g.homeRegion}`);
+  });
+  const classificationLabel = (className, regionName) => {
+    const classNumber = String(className).replace(/[^0-9]/g, "");
+    const regionLetter = String(regionName).replace(/^Region\\s*/i, "").trim().toUpperCase();
+    return `${classNumber}${regionLetter}`;
+  };
+  [...classificationKeys]
+    .map((key) => {
+      const [className, regionName] = key.split("|");
+      return { className, regionName, label: classificationLabel(className, regionName) };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+    .forEach(({ className, regionName, label }) => boards.push({
+      id: `classification-${slug(label)}`,
+      type: "classification",
+      group: "Classification",
+      label: `VHSL Class ${label}`,
+      shortLabel: label,
+      description: `Week ${CURRENT_WEEK} games involving VHSL Class ${label} programs.`,
+      games: games.filter((g) =>
+        (g.awayClass === className && g.awayRegion === regionName) ||
+        (g.homeClass === className && g.homeRegion === regionName)
+      ),
+    }));
   const schools = new Set(); games.forEach((g) => { schools.add(g.away); schools.add(g.home); });
   [...schools].sort().forEach((s) => boards.push({ id: `school-${slug(s)}`, type: "school", group: "School", label: s, shortLabel: s, description: `Follow ${s}'s available weekly matchup.`, games: games.filter((g) => g.away === s || g.home === s) }));
   return boards.map((b) => ({ ...b, games: uniq(b.games) }));
