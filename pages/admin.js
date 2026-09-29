@@ -63,7 +63,19 @@ export default function AdminScores() {
 
   async function reopen(game) {
     if (!user) return setMessage("Sign in first.");
-    setMessage("Reopening finalized games is temporarily disabled while the secure admin reopen function is being added.");
+    if (!window.confirm(`Reopen ${game.away_team} at ${game.home_team}? This removes the winner from leaderboard scoring until a corrected result is finalized.`)) return;
+    setSavingId(game.id);
+    setMessage("");
+    const { data, error } = await supabase.rpc("admin_reopen_game", {
+      p_game_id: game.id,
+      p_season: SEASON,
+      p_week: CURRENT_WEEK,
+    });
+    setSavingId(null);
+    if (error) return setMessage("Game was NOT reopened: " + error.message);
+    if (data !== true) return setMessage("Game was NOT confirmed as reopened. Refresh and verify before continuing.");
+    setMessage(`✅ Reopened: ${game.away_team} at ${game.home_team}. Enter the corrected score and finalize again.`);
+    await loadGames();
   }
 
   return <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
