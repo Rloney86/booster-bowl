@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "season": 2026,
+  "notes": "Manual verification registry for ambiguous VHSL schedule entries. Only add an entry after checking an official school/athletics schedule or another trusted varsity source. exclude removes a source candidate; replace can correct date/venue/opponent data.",
+  "overrides": [
+    {
+      "action": "replace",
+      "week": 6,
+      "matchup": ["John Marshall", "Woodbridge"],
+      "date": "2026-10-02",
+      "away_team": "John Marshall",
+      "home_team": "Woodbridge",
+      "reason": "Verified varsity venue: John Marshall is away at Woodbridge."
+    }
+  ]
+}
