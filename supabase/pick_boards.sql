@@ -10,8 +10,11 @@ alter table public.games add column if not exists home_region text;
 alter table public.games add column if not exists away_class text;
 alter table public.games add column if not exists away_region text;
 alter table public.games add column if not exists is_featured boolean not null default false;
-alter table public.games add column if not exists source_name text;
+alter table public.games add column if not exists source text;
+alter table public.games add column if not exists source_game_id text;
 alter table public.games add column if not exists source_url text;
+alter table public.games add column if not exists synced_at timestamptz;
+alter table public.games add column if not exists sync_status text;
 alter table public.games add column if not exists kickoff_at timestamptz;
 
 create index if not exists games_season_week_district_idx on public.games (season, week, district);
