@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Sync remaining 2026 VHSL Class 2-6 varsity football schedules into Supabase."""
-import hashlib, os, re, sys
+"""Sync verified 2026 VHSL Class 2-6 varsity football schedules into Supabase."""
+import hashlib, json, os, re, sys
 from collections import Counter, defaultdict
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup
@@ -10,11 +11,13 @@ from bs4 import BeautifulSoup
 SEASON=2026
 SOURCE="VirginiaPreps / On3"
 SOURCE_URL="https://www.on3.com/sites/virginia-preps/news/2026-vhsl-football-team-by-team-schedules-with-results/"
+OVERRIDES_PATH=Path(__file__).resolve().parents[1]/"data"/"vhsl_schedule_overrides.json"
 TARGET_CLASSES={2,3,4,5,6}
 MONTHS={"Sep":9,"Oct":10,"Nov":11}
 WEEK_WINDOWS={6:(date(2026,9,28),date(2026,10,4)),7:(date(2026,10,5),date(2026,10,11)),8:(date(2026,10,12),date(2026,10,18)),9:(date(2026,10,19),date(2026,10,25)),10:(date(2026,10,26),date(2026,11,1)),11:(date(2026,11,2),date(2026,11,8))}
 
 def clean(v): return re.sub(r"\s+"," ",v.replace("’","'").replace("–","-").replace("—","-")).strip()
+def team_key(v): return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",clean(v).lower())).strip()
 def week_for_date(d):
     for w,(a,b) in WEEK_WINDOWS.items():
         if a<=d<=b:return w
@@ -26,7 +29,6 @@ def display_team(v):
     for a,b in {"J.r.":"J.R.","L.c.":"L.C.","C.d.":"C.D.","I.c.":"I.C.","C.g.":"C.G."}.items():v=v.replace(a,b)
     return v
 
-def team_key(v): return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",clean(v).lower())).strip()
 def matchup_key(d,a,b):
     t=sorted((team_key(a),team_key(b)));return(str(d),t[0],t[1])
 def stable_source_id(d,a,b): return hashlib.sha256(f"{SEASON}|{'|'.join(matchup_key(d,a,b))}".encode()).hexdigest()[:32]
@@ -37,8 +39,41 @@ def looks_like_team_heading(line):
     if any(x in c.upper() for x in ("SCHEDULE","RESULT","SCOREBOARD","FOOTBALL")):return False
     letters=re.sub(r"[^A-Za-z]","",c);return bool(letters) and c==c.upper()
 
+def load_overrides():
+    if not OVERRIDES_PATH.exists():return []
+    data=json.loads(OVERRIDES_PATH.read_text(encoding="utf-8"))
+    if data.get("season")!=SEASON:raise RuntimeError(f"Override registry season must be {SEASON}.")
+    return data.get("overrides",[])
+
+def override_matches(game,rule):
+    if rule.get("week") and game["week"]!=rule["week"]:return False
+    wanted={team_key(x) for x in rule.get("matchup",[])}
+    actual={team_key(game["away_team"]),team_key(game["home_team"])}
+    return len(wanted)==2 and wanted==actual
+
+def apply_overrides(raw):
+    rules=load_overrides();out=[];hits=Counter()
+    for game in raw:
+        current=dict(game);excluded=False
+        for i,rule in enumerate(rules):
+            if not override_matches(current,rule):continue
+            action=rule.get("action")
+            if action=="exclude":excluded=True;hits[i]+=1;break
+            if action=="replace":
+                for field in ("date","away_team","home_team"):
+                    if rule.get(field):current[field]=rule[field]
+                gd=date.fromisoformat(current["date"]);current["week"]=week_for_date(gd)
+                if not current["week"]:raise RuntimeError(f"Override moved game outside supported weeks: {rule}")
+                hits[i]+=1
+            else:raise RuntimeError(f"Unknown override action: {action}")
+        if not excluded:out.append(current)
+    for i,rule in enumerate(rules):
+        if not hits[i]:raise RuntimeError(f"Verified schedule override matched no source rows: {rule}")
+        print(f"Override applied ({hits[i]} source row(s)): {rule.get('reason','verified schedule correction')}")
+    return out
+
 def parse_schedule():
-    r=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/3.2"});r.raise_for_status()
+    r=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/4.0"});r.raise_for_status()
     soup=BeautifulSoup(r.text,"html.parser");article=soup.find("article") or soup
     lines=[clean(x) for x in article.get_text("\n").splitlines() if clean(x)]
     current_class=current_region=current_team=None;teams={};raw=[]
@@ -57,20 +92,21 @@ def parse_schedule():
         opp=re.sub(r",\s*.*$","",opp).strip();away=opp.lower().startswith("at ");opponent=display_team(opp[3:].strip() if away else opp)
         gd=date(SEASON,MONTHS[month.title()],int(day));week=week_for_date(gd)
         if week:raw.append({"date":gd.isoformat(),"week":week,"away_team":current_team if away else opponent,"home_team":opponent if away else current_team,"listed_by":current_team})
-    unique={};conflicts=[];ambiguous_keys=set()
+    raw=apply_overrides(raw)
+    unique={};conflicts=[];ambiguous=set()
     for game in raw:
         key=matchup_key(game["date"],game["away_team"],game["home_team"]);prior=unique.get(key)
         if prior and (team_key(prior["away_team"])!=team_key(game["away_team"]) or team_key(prior["home_team"])!=team_key(game["home_team"])):
-            conflicts.append((prior,game));ambiguous_keys.add(key);continue
+            conflicts.append((prior,game));ambiguous.add(key);continue
         unique[key]=game
     if conflicts:
         print(f"WARNING: {len(conflicts)} home/away source conflicts require verification:",file=sys.stderr)
-        for a,b in conflicts:print(f"  W{a['week']} {a['date']}: {a['away_team']} at {a['home_team']}  <->  {b['away_team']} at {b['home_team']}",file=sys.stderr)
+        for a,b in conflicts:print(f"  W{a['week']} {a['date']}: {a['away_team']} at {a['home_team']} <-> {b['away_team']} at {b['home_team']}",file=sys.stderr)
     now=datetime.now(tz=ZoneInfo("UTC")).isoformat();rows=[]
-    for key,game in unique.items():
-        if key in ambiguous_keys:continue
-        am=teams.get(team_key(game["away_team"]));hm=teams.get(team_key(game["home_team"]));kick=datetime.fromisoformat(game["date"]+"T19:00:00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
-        rows.append({"season":SEASON,"week":game["week"],"away_team":game["away_team"],"home_team":game["home_team"],"kickoff_at":kick,"sport":"football","away_class":f"Class {am[0]}" if am else None,"away_region":f"Region {am[1]}" if am and am[1] else None,"home_class":f"Class {hm[0]}" if hm else None,"home_region":f"Region {hm[1]}" if hm and hm[1] else None,"source":SOURCE,"source_game_id":stable_source_id(game["date"],game["away_team"],game["home_team"]),"source_url":SOURCE_URL,"synced_at":now,"sync_status":"scheduled"})
+    for key,g in unique.items():
+        if key in ambiguous:continue
+        am=teams.get(team_key(g["away_team"]));hm=teams.get(team_key(g["home_team"]));kick=datetime.fromisoformat(g["date"]+"T19:00:00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
+        rows.append({"season":SEASON,"week":g["week"],"away_team":g["away_team"],"home_team":g["home_team"],"kickoff_at":kick,"sport":"football","away_class":f"Class {am[0]}" if am else None,"away_region":f"Region {am[1]}" if am and am[1] else None,"home_class":f"Class {hm[0]}" if hm else None,"home_region":f"Region {hm[1]}" if hm and hm[1] else None,"source":SOURCE,"source_game_id":stable_source_id(g["date"],g["away_team"],g["home_team"]),"source_url":SOURCE_URL,"synced_at":now,"sync_status":"scheduled"})
     return rows,conflicts
 
 def varsity_conflicts(rows):
@@ -98,7 +134,7 @@ def validate(rows,homeaway):
     blockers=[]
     if homeaway:blockers.append(f"{len(homeaway)} unresolved home/away conflicts")
     if suspicious:blockers.append(f"{len(suspicious)} possible JV/duplicate team-week conflicts")
-    if blockers:raise RuntimeError("Schedule verification required before Supabase write: "+"; ".join(blockers)+". All conflicts were printed above; no ambiguous games were synced.")
+    if blockers:raise RuntimeError("Schedule verification required before Supabase write: "+"; ".join(blockers)+". Add only verified corrections/exclusions to data/vhsl_schedule_overrides.json.")
     if len(rows)<150:raise RuntimeError(f"Only {len(rows)} unique games parsed; expected statewide slate. Refusing live sync.")
     return counts
 
