@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Sync verified 2026 VHSL Class 2-6 varsity football schedules into Supabase."""
-import hashlib, os, re, sys
+import hashlib, json, os, re, sys
 from collections import Counter, defaultdict
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 import requests
 from vhsl_official_source import parse_official_schedule
