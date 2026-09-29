@@ -12,11 +12,12 @@ export default function AdminScores() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [message, setMessage] = useState("");
+  const [adminWeek, setAdminWeek] = useState(CURRENT_WEEK);
 
   async function loadGames() {
     setLoading(true);
     setMessage("");
-    const { data, error } = await supabase.from("games").select("id,away_team,home_team,away_score,home_score,winner,is_final,kickoff_at,season,week").eq("season", SEASON).eq("week", CURRENT_WEEK).order("id");
+    const { data, error } = await supabase.from("games").select("id,away_team,home_team,away_score,home_score,winner,is_final,kickoff_at,season,week").eq("season", SEASON).eq("week", adminWeek).order("id");
     if (error) { setMessage("Could not load games: " + error.message); setLoading(false); return; }
     setGames(data || []);
     const next = {};
@@ -28,7 +29,7 @@ export default function AdminScores() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
     loadGames();
-  }, []);
+  }, [adminWeek]);
 
   const completed = useMemo(() => games.filter((g) => g.is_final).length, [games]);
 
@@ -50,7 +51,7 @@ export default function AdminScores() {
     const { data, error } = await supabase.rpc("admin_finalize_game", {
       p_game_id: game.id,
       p_season: SEASON,
-      p_week: CURRENT_WEEK,
+      p_week: adminWeek,
       p_away_score: awayScore,
       p_home_score: homeScore,
     });
@@ -63,13 +64,25 @@ export default function AdminScores() {
 
   async function reopen(game) {
     if (!user) return setMessage("Sign in first.");
-    setMessage("Reopening finalized games is temporarily disabled while the secure admin reopen function is being added.");
+    if (!window.confirm(`Reopen ${game.away_team} at ${game.home_team}? This removes the winner from leaderboard scoring until a corrected result is finalized.`)) return;
+    setSavingId(game.id);
+    setMessage("");
+    const { data, error } = await supabase.rpc("admin_reopen_game", {
+      p_game_id: game.id,
+      p_season: SEASON,
+      p_week: adminWeek,
+    });
+    setSavingId(null);
+    if (error) return setMessage("Game was NOT reopened: " + error.message);
+    if (data !== true) return setMessage("Game was NOT confirmed as reopened. Refresh and verify before continuing.");
+    setMessage(`✅ Reopened: ${game.away_team} at ${game.home_team}. Enter the corrected score and finalize again.`);
+    await loadGames();
   }
 
   return <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
     <section className="card">
       <h1 style={{ marginTop: 0 }}>🏈 Score Admin</h1>
-      <p>Season {SEASON} — Week {CURRENT_WEEK}</p>
+      <p>Season {SEASON} — Week {adminWeek}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{Array.from({ length: CURRENT_WEEK }, (_, i) => i + 1).map((week) => <button key={week} className="button" onClick={() => setAdminWeek(week)} style={{ opacity: adminWeek === week ? 1 : .55, padding: "8px 12px" }}>Week {week}</button>)}</div>
       <p style={{ opacity: .8 }}>Enter both scores, verify them, then finalize. The winner is calculated automatically.</p>
       <p><b>{completed} / {games.length}</b> games final</p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><Link href="/leaderboard" className="button">Leaderboard</Link><button className="button" onClick={loadGames}>Refresh</button></div>

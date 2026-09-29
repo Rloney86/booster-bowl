@@ -8,8 +8,9 @@ export default function MyPicks() {
   const [message, setMessage] = useState("");
   const [rows, setRows] = useState([]);
   const [user, setUser] = useState(null);
+  const [selectedWeek, setSelectedWeek] = useState(CURRENT_WEEK);
 
-  useEffect(() => { loadPicks(); }, []);
+  useEffect(() => { loadPicks(); }, [selectedWeek]);
 
   async function loadPicks() {
     setLoading(true);
@@ -40,7 +41,7 @@ export default function MyPicks() {
       .from("games")
       .select("id,away_team,home_team,winner")
       .eq("season", Number(SEASON))
-      .eq("week", CURRENT_WEEK);
+      .eq("week", selectedWeek);
 
     if (gamesError) {
       setMessage("Could not load this week's games: " + gamesError.message);
@@ -79,7 +80,7 @@ export default function MyPicks() {
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
       <section className="card">
         <h1 style={{ marginTop: 0 }}>🏈 My Picks</h1>
-        <p style={{ opacity: 0.85 }}>2026 • Week {CURRENT_WEEK}</p>
+        <p style={{ opacity: 0.85 }}>2026 • Week {selectedWeek}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{Array.from({ length: CURRENT_WEEK }, (_, i) => i + 1).map((week) => <button key={week} className="button" onClick={() => setSelectedWeek(week)} style={{ opacity: selectedWeek === week ? 1 : .55, padding: "8px 12px" }}>Week {week}</button>)}</div>
         {user ? <p style={{ fontWeight: 700 }}>✅ Signed in as {user.email}</p> : null}
         {completed.length ? <p style={{ fontSize: 20 }}>Your record: <b>{correct}-{completed.length - correct}</b> ({correct}/{completed.length} correct)</p> : <p>Results will grade automatically as game winners are entered.</p>}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -92,7 +93,7 @@ export default function MyPicks() {
 
       <div style={{ height: 18 }} />
       {loading ? <section className="card">Loading your picks...</section> : null}
-      {!loading && !message && rows.length === 0 ? <section className="card">No saved picks found for Week {CURRENT_WEEK}.</section> : null}
+      {!loading && !message && rows.length === 0 ? <section className="card">No saved picks found for Week {selectedWeek}.</section> : null}
       {rows.map((row, index) => {
         const winner = row.game.winner;
         const isCorrect = winner ? row.selected_team === winner : null;
