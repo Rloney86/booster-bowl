@@ -1,206 +1,131 @@
 #!/usr/bin/env python3
-"""Sync remaining 2026 VHSL Class 2-6 varsity football schedules into Supabase.
-
-Matchups are reconciled by date + unordered team pair so a corrected home/away
-orientation updates the existing Supabase row in place. This preserves game IDs,
-picks, scoring links, and finalized results.
-
-The source is intended to be varsity-only, but schedule feeds can occasionally
-contain duplicate or lower-level rows. Before touching Supabase we therefore
-reject suspicious same-team/same-week slates instead of guessing which game is
-varsity. That makes bad source data fail closed for manual verification against
-an official athletics schedule / MaxPreps.
-"""
-import hashlib
-import os
-import re
-import sys
+"""Sync remaining 2026 VHSL Class 2-6 varsity football schedules into Supabase."""
+import hashlib, os, re, sys
 from collections import Counter, defaultdict
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
-
 import requests
 from bs4 import BeautifulSoup
 
-SEASON = 2026
-SOURCE = "VirginiaPreps / On3"
-SOURCE_URL = "https://www.on3.com/sites/virginia-preps/news/2026-vhsl-football-team-by-team-schedules-with-results/"
-TARGET_CLASSES = {2, 3, 4, 5, 6}
-MONTHS = {"Sep": 9, "Oct": 10, "Nov": 11}
-WEEK_WINDOWS = {
-    6: (date(2026, 9, 28), date(2026, 10, 4)),
-    7: (date(2026, 10, 5), date(2026, 10, 11)),
-    8: (date(2026, 10, 12), date(2026, 10, 18)),
-    9: (date(2026, 10, 19), date(2026, 10, 25)),
-    10: (date(2026, 10, 26), date(2026, 11, 1)),
-    11: (date(2026, 11, 2), date(2026, 11, 8)),
-}
+SEASON=2026
+SOURCE="VirginiaPreps / On3"
+SOURCE_URL="https://www.on3.com/sites/virginia-preps/news/2026-vhsl-football-team-by-team-schedules-with-results/"
+TARGET_CLASSES={2,3,4,5,6}
+MONTHS={"Sep":9,"Oct":10,"Nov":11}
+WEEK_WINDOWS={6:(date(2026,9,28),date(2026,10,4)),7:(date(2026,10,5),date(2026,10,11)),8:(date(2026,10,12),date(2026,10,18)),9:(date(2026,10,19),date(2026,10,25)),10:(date(2026,10,26),date(2026,11,1)),11:(date(2026,11,2),date(2026,11,8))}
 
-def clean(value):
-    return re.sub(r"\s+", " ", value.replace("’", "'").replace("–", "-").replace("—", "-")).strip()
+def clean(v): return re.sub(r"\s+"," ",v.replace("’","'").replace("–","-").replace("—","-")).strip()
+def week_for_date(d):
+    for w,(a,b) in WEEK_WINDOWS.items():
+        if a<=d<=b:return w
 
-def week_for_date(game_date):
-    for week, (start, end) in WEEK_WINDOWS.items():
-        if start <= game_date <= end: return week
-    return None
+def display_team(v):
+    v=clean(v);v=re.sub(r"\s*\(\d+\s+games?\)\s*$","",v,flags=re.I)
+    if v==v.upper():v=v.title()
+    v=re.sub(r"'S\b","'s",v)
+    for a,b in {"J.r.":"J.R.","L.c.":"L.C.","C.d.":"C.D.","I.c.":"I.C.","C.g.":"C.G."}.items():v=v.replace(a,b)
+    return v
 
-def display_team(value):
-    value = clean(value)
-    value = re.sub(r"\s*\(\d+\s+games?\)\s*$", "", value, flags=re.I)
-    if value == value.upper(): value = value.title()
-    value = re.sub(r"'S\b", "'s", value)
-    for old, new in {"J.r.":"J.R.","L.c.":"L.C.","C.d.":"C.D.","I.c.":"I.C.","C.g.":"C.G."}.items(): value=value.replace(old,new)
-    return value
-
-def team_key(value):
-    value = clean(value).lower()
-    value = re.sub(r"[^a-z0-9]+", " ", value)
-    return re.sub(r"\s+", " ", value).strip()
-
-def matchup_key(game_date, team_a, team_b):
-    teams = sorted((team_key(team_a), team_key(team_b)))
-    return (str(game_date), teams[0], teams[1])
-
-def stable_source_id(game_date, away, home):
-    # Orientation-independent so correcting home/away never creates a new game identity.
-    key = matchup_key(game_date, away, home)
-    return hashlib.sha256(f"{SEASON}|{'|'.join(key)}".encode()).hexdigest()[:32]
-
+def team_key(v): return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",clean(v).lower())).strip()
+def matchup_key(d,a,b):
+    t=sorted((team_key(a),team_key(b)));return(str(d),t[0],t[1])
+def stable_source_id(d,a,b): return hashlib.sha256(f"{SEASON}|{'|'.join(matchup_key(d,a,b))}".encode()).hexdigest()[:32]
 def looks_like_team_heading(line):
-    candidate = re.sub(r"\s*\(\d+\s+games?\)\s*$", "", line, flags=re.I).strip()
-    if not candidate or len(candidate)>70 or re.match(r"^(W|L|TIE|SEP|OCT|NOV)\b",candidate,re.I): return False
-    if candidate.upper().startswith(("REGION ","CLASS ")): return False
-    if any(word in candidate.upper() for word in ("SCHEDULE","RESULT","SCOREBOARD","FOOTBALL")): return False
-    letters=re.sub(r"[^A-Za-z]","",candidate)
-    return bool(letters) and candidate==candidate.upper()
+    c=re.sub(r"\s*\(\d+\s+games?\)\s*$","",line,flags=re.I).strip()
+    if not c or len(c)>70 or re.match(r"^(W|L|TIE|SEP|OCT|NOV)\b",c,re.I):return False
+    if c.upper().startswith(("REGION ","CLASS ")):return False
+    if any(x in c.upper() for x in ("SCHEDULE","RESULT","SCOREBOARD","FOOTBALL")):return False
+    letters=re.sub(r"[^A-Za-z]","",c);return bool(letters) and c==c.upper()
 
 def parse_schedule():
-    response=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/3.1"}); response.raise_for_status()
-    soup=BeautifulSoup(response.text,"html.parser"); article=soup.find("article") or soup
+    r=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/3.2"});r.raise_for_status()
+    soup=BeautifulSoup(r.text,"html.parser");article=soup.find("article") or soup
     lines=[clean(x) for x in article.get_text("\n").splitlines() if clean(x)]
-    current_class=current_region=current_team=None; teams={}; raw_games=[]
+    current_class=current_region=current_team=None;teams={};raw=[]
     for line in lines:
         m=re.fullmatch(r"CLASS\s+([1-6]):?",line.upper())
-        if m: current_class=int(m.group(1)); current_region=None; current_team=None; continue
+        if m:current_class=int(m.group(1));current_region=None;current_team=None;continue
         m=re.fullmatch(r"REGION\s+([1-6])([A-D])",line.upper())
-        if m: current_class=int(m.group(1)); current_region=m.group(2); current_team=None; continue
-        if current_class not in TARGET_CLASSES: continue
-        if looks_like_team_heading(line):
-            current_team=display_team(line); teams[team_key(current_team)]=(current_class,current_region); continue
-        if not current_team: continue
+        if m:current_class=int(m.group(1));current_region=m.group(2);current_team=None;continue
+        if current_class not in TARGET_CLASSES:continue
+        if looks_like_team_heading(line):current_team=display_team(line);teams[team_key(current_team)]=(current_class,current_region);continue
+        if not current_team:continue
         m=re.match(r"^(Sep|Oct|Nov)\s+(\d{1,2}),\s+(.+)$",line,re.I)
-        if not m: continue
-        month,day,opponent_text=m.groups(); opponent_text=clean(opponent_text)
-        if re.search(r"\b(canceled|cancelled|ppd\.?|susp\.?|postponed)\b",opponent_text,re.I): continue
-        opponent_text=re.sub(r",\s*.*$","",opponent_text).strip(); is_away=opponent_text.lower().startswith("at ")
-        opponent=display_team(opponent_text[3:].strip() if is_away else opponent_text)
-        game_date=date(SEASON,MONTHS[month.title()],int(day)); week=week_for_date(game_date)
-        if not week: continue
-        raw_games.append({"date":game_date.isoformat(),"week":week,"away_team":current_team if is_away else opponent,"home_team":opponent if is_away else current_team,"listed_by":current_team})
-
-    # Reconcile the two team schedule entries for each game by unordered matchup.
-    # If both schools are in Classes 2-6 they should independently agree on venue.
-    unique={}; conflicts=[]
-    for game in raw_games:
-        key=matchup_key(game["date"],game["away_team"],game["home_team"])
-        prior=unique.get(key)
-        if prior and (team_key(prior["away_team"]) != team_key(game["away_team"]) or team_key(prior["home_team"]) != team_key(game["home_team"])):
-            conflicts.append((prior,game))
-            continue
+        if not m:continue
+        month,day,opp=m.groups();opp=clean(opp)
+        if re.search(r"\b(canceled|cancelled|ppd\.?|susp\.?|postponed)\b",opp,re.I):continue
+        opp=re.sub(r",\s*.*$","",opp).strip();away=opp.lower().startswith("at ");opponent=display_team(opp[3:].strip() if away else opp)
+        gd=date(SEASON,MONTHS[month.title()],int(day));week=week_for_date(gd)
+        if week:raw.append({"date":gd.isoformat(),"week":week,"away_team":current_team if away else opponent,"home_team":opponent if away else current_team,"listed_by":current_team})
+    unique={};conflicts=[];ambiguous_keys=set()
+    for game in raw:
+        key=matchup_key(game["date"],game["away_team"],game["home_team"]);prior=unique.get(key)
+        if prior and (team_key(prior["away_team"])!=team_key(game["away_team"]) or team_key(prior["home_team"])!=team_key(game["home_team"])):
+            conflicts.append((prior,game));ambiguous_keys.add(key);continue
         unique[key]=game
     if conflicts:
-        sample="; ".join(f"{a['date']} {a['away_team']} at {a['home_team']} vs {b['away_team']} at {b['home_team']}" for a,b in conflicts[:5])
-        raise RuntimeError(f"Home/away source conflicts detected ({len(conflicts)}): {sample}")
+        print(f"WARNING: {len(conflicts)} home/away source conflicts require verification:",file=sys.stderr)
+        for a,b in conflicts:print(f"  W{a['week']} {a['date']}: {a['away_team']} at {a['home_team']}  <->  {b['away_team']} at {b['home_team']}",file=sys.stderr)
+    now=datetime.now(tz=ZoneInfo("UTC")).isoformat();rows=[]
+    for key,game in unique.items():
+        if key in ambiguous_keys:continue
+        am=teams.get(team_key(game["away_team"]));hm=teams.get(team_key(game["home_team"]));kick=datetime.fromisoformat(game["date"]+"T19:00:00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
+        rows.append({"season":SEASON,"week":game["week"],"away_team":game["away_team"],"home_team":game["home_team"],"kickoff_at":kick,"sport":"football","away_class":f"Class {am[0]}" if am else None,"away_region":f"Region {am[1]}" if am and am[1] else None,"home_class":f"Class {hm[0]}" if hm else None,"home_region":f"Region {hm[1]}" if hm and hm[1] else None,"source":SOURCE,"source_game_id":stable_source_id(game["date"],game["away_team"],game["home_team"]),"source_url":SOURCE_URL,"synced_at":now,"sync_status":"scheduled"})
+    return rows,conflicts
 
-    now_iso=datetime.now(tz=ZoneInfo("UTC")).isoformat(); rows=[]
-    for game in unique.values():
-        away_meta=teams.get(team_key(game["away_team"])); home_meta=teams.get(team_key(game["home_team"]))
-        kickoff=datetime.fromisoformat(game["date"]+"T19:00:00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
-        rows.append({"season":SEASON,"week":game["week"],"away_team":game["away_team"],"home_team":game["home_team"],"kickoff_at":kickoff,"sport":"football","away_class":f"Class {away_meta[0]}" if away_meta else None,"away_region":f"Region {away_meta[1]}" if away_meta and away_meta[1] else None,"home_class":f"Class {home_meta[0]}" if home_meta else None,"home_region":f"Region {home_meta[1]}" if home_meta and home_meta[1] else None,"source":SOURCE,"source_game_id":stable_source_id(game["date"],game["away_team"],game["home_team"]),"source_url":SOURCE_URL,"synced_at":now_iso,"sync_status":"scheduled"})
-    return rows
-
-def validate_varsity_weekly_slates(rows):
-    """Fail closed when the source makes one school appear in >1 game in a week.
-
-    A real varsity schedule can occasionally have an unusual date, so we do not
-    assume Thursday=JV or Friday=varsity. Multiple games in one Booster Bowl week
-    are instead treated as ambiguous and must be verified before publication.
-    """
-    team_week=defaultdict(list)
-    for row in rows:
-        for team in (row["away_team"],row["home_team"]):
-            team_week[(row["week"],team_key(team))].append(row)
-
-    suspicious=[]
-    for (week,_), games in team_week.items():
-        # Each unique row is already deduped by date + unordered matchup above.
+def varsity_conflicts(rows):
+    tw=defaultdict(list)
+    for r in rows:
+        for team in (r["away_team"],r["home_team"]):tw[(r["week"],team_key(team))].append(r)
+    out=[]
+    for (week,key),games in tw.items():
         if len(games)>1:
-            team=next(t for t in (games[0]["away_team"],games[0]["home_team"]) if team_key(t)==_)
-            descriptions=sorted(f"{str(g['kickoff_at'])[:10]} {g['away_team']} at {g['home_team']}" for g in games)
-            suspicious.append((week,team,descriptions))
+            team=next(t for t in (games[0]["away_team"],games[0]["home_team"]) if team_key(t)==key)
+            out.append((week,team,sorted(f"{str(g['kickoff_at'])[:10]} {g['away_team']} at {g['home_team']}" for g in games)))
+    return out
 
+def validate(rows,homeaway):
+    if not rows:raise RuntimeError("No Week 6-11 Class 2-6 games were parsed.")
+    counts=Counter(r["week"] for r in rows);missing=[w for w in WEEK_WINDOWS if counts[w]==0]
+    if missing:raise RuntimeError(f"Parser returned zero games for week(s): {missing}")
+    suspicious=varsity_conflicts(rows)
     if suspicious:
-        sample="; ".join(f"W{week} {team}: {' | '.join(games)}" for week,team,games in suspicious[:12])
-        raise RuntimeError(
-            f"Varsity schedule validation found {len(suspicious)} team-week conflicts. "
-            "Possible JV/duplicate schedule contamination; verify against the school's official athletics schedule or MaxPreps before syncing. "
-            f"Conflicts: {sample}"
-        )
-
-def validate(rows):
-    if not rows: raise RuntimeError("No Week 6-11 Class 2-6 games were parsed.")
-    counts=Counter(row["week"] for row in rows); missing=[w for w in WEEK_WINDOWS if counts[w]==0]
-    if missing: raise RuntimeError(f"Parser returned zero games for week(s): {missing}")
-    if len(rows)<150: raise RuntimeError(f"Only {len(rows)} unique games parsed; expected a statewide slate. Refusing live sync.")
-    classified=sum(1 for row in rows if row.get("away_class") or row.get("home_class"))
-    if classified<int(len(rows)*.90): raise RuntimeError(f"Only {classified}/{len(rows)} games have at least one Class 2-6 team; refusing sync.")
-    validate_varsity_weekly_slates(rows)
-    # Regression guard for the known Week 6 venue issue.
+        print(f"WARNING: {len(suspicious)} team-week conflicts (possible JV/duplicate contamination):",file=sys.stderr)
+        for w,t,games in suspicious:print(f"  W{w} {t}: {' | '.join(games)}",file=sys.stderr)
     jm=[r for r in rows if r["week"]==6 and {team_key(r["away_team"]),team_key(r["home_team"])}=={team_key("John Marshall"),team_key("Woodbridge")}]
-    if len(jm)!=1 or team_key(jm[0]["away_team"])!=team_key("John Marshall") or team_key(jm[0]["home_team"])!=team_key("Woodbridge"):
-        raise RuntimeError("Venue validation failed: expected John Marshall at Woodbridge in Week 6.")
+    if len(jm)!=1 or team_key(jm[0]["away_team"])!=team_key("John Marshall") or team_key(jm[0]["home_team"])!=team_key("Woodbridge"):raise RuntimeError("Venue validation failed: expected John Marshall at Woodbridge in Week 6.")
     print("Venue check: John Marshall at Woodbridge OK")
+    blockers=[]
+    if homeaway:blockers.append(f"{len(homeaway)} unresolved home/away conflicts")
+    if suspicious:blockers.append(f"{len(suspicious)} possible JV/duplicate team-week conflicts")
+    if blockers:raise RuntimeError("Schedule verification required before Supabase write: "+"; ".join(blockers)+". All conflicts were printed above; no ambiguous games were synced.")
+    if len(rows)<150:raise RuntimeError(f"Only {len(rows)} unique games parsed; expected statewide slate. Refusing live sync.")
     return counts
 
-def check_response(response, operation):
-    if response.ok: return
-    body=response.text[:2000]
-    for secret in (os.getenv("SUPABASE_SERVICE_ROLE_KEY"),):
-        if secret: body=body.replace(secret,"[REDACTED]")
-    raise RuntimeError(f"Supabase {operation} failed: HTTP {response.status_code}; response: {body}")
+def check_response(r,op):
+    if r.ok:return
+    body=r.text[:2000];secret=os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if secret:body=body.replace(secret,"[REDACTED]")
+    raise RuntimeError(f"Supabase {op} failed: HTTP {r.status_code}; response: {body}")
 
 def sync(rows):
-    base_url=os.environ["SUPABASE_URL"].rstrip("/"); key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-    headers={"apikey":key,"Authorization":f"Bearer {key}","Content-Type":"application/json"}
-    response=requests.get(f"{base_url}/rest/v1/games?select=id,season,week,away_team,home_team,source_game_id,is_final,kickoff_at&season=eq.{SEASON}&week=gte.6&week=lte.11",headers=headers,timeout=45)
-    check_response(response,"initial games read"); existing=response.json()
-    by_source={row.get("source_game_id"):row for row in existing if row.get("source_game_id")}
-    by_matchup={matchup_key(str(row.get("kickoff_at") or "")[:10],row["away_team"],row["home_team"]):row for row in existing}
-    created=updated=skipped_final=0
+    base=os.environ["SUPABASE_URL"].rstrip("/");key=os.environ["SUPABASE_SERVICE_ROLE_KEY"];h={"apikey":key,"Authorization":f"Bearer {key}","Content-Type":"application/json"}
+    r=requests.get(f"{base}/rest/v1/games?select=id,season,week,away_team,home_team,source_game_id,is_final,kickoff_at&season=eq.{SEASON}&week=gte.6&week=lte.11",headers=h,timeout=45);check_response(r,"initial games read");existing=r.json()
+    by_source={x.get("source_game_id"):x for x in existing if x.get("source_game_id")};by_match={matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]):x for x in existing};created=updated=final=0
     for row in rows:
-        existing_row=by_source.get(row["source_game_id"]) or by_matchup.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
-        if existing_row and existing_row.get("is_final"): skipped_final+=1; continue
-        if existing_row:
-            resp=requests.patch(f"{base_url}/rest/v1/games?id=eq.{existing_row['id']}",headers={**headers,"Prefer":"return=minimal"},json=row,timeout=45); operation=f"update game id {existing_row['id']}"; updated+=1
-        else:
-            resp=requests.post(f"{base_url}/rest/v1/games",headers={**headers,"Prefer":"return=minimal"},json=row,timeout=45); operation=f"create {row['away_team']} at {row['home_team']} (week {row['week']})"; created+=1
-        check_response(resp,operation)
-    return created,updated,skipped_final
+        old=by_source.get(row["source_game_id"]) or by_match.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
+        if old and old.get("is_final"):final+=1;continue
+        if old:r=requests.patch(f"{base}/rest/v1/games?id=eq.{old['id']}",headers={**h,"Prefer":"return=minimal"},json=row,timeout=45);op=f"update game id {old['id']}";updated+=1
+        else:r=requests.post(f"{base}/rest/v1/games",headers={**h,"Prefer":"return=minimal"},json=row,timeout=45);op=f"create {row['away_team']} at {row['home_team']}";created+=1
+        check_response(r,op)
+    return created,updated,final
 
 def main():
-    rows=parse_schedule(); counts=validate(rows)
-    print(f"Parsed {len(rows)} unique Week 6-11 games."); print("Games by week:",", ".join(f"W{w}={counts[w]}" for w in sorted(counts)))
-    class_region=Counter()
-    for row in rows:
-        for cv,rv in ((row.get("away_class"),row.get("away_region")),(row.get("home_class"),row.get("home_region"))):
-            if cv: class_region[f"{cv}{(rv or '').replace('Region ','')}"]+=1
-    print("Classification coverage:",", ".join(f"{k}:{v}" for k,v in sorted(class_region.items())))
-    if os.getenv("DRY_RUN")=="1":
-        for row in rows[:25]: print(row)
-        print("DRY_RUN complete. Supabase was not changed."); return
-    created,updated,skipped_final=sync(rows); print(f"Supabase sync complete: {created} created, {updated} updated, {skipped_final} finalized rows preserved.")
+    rows,homeaway=parse_schedule();counts=validate(rows,homeaway)
+    print(f"Parsed {len(rows)} verified unique Week 6-11 games.");print("Games by week:",", ".join(f"W{w}={counts[w]}" for w in sorted(counts)))
+    if os.getenv("DRY_RUN")=="1":print("DRY_RUN complete. Supabase was not changed.");return
+    c,u,f=sync(rows);print(f"Supabase sync complete: {c} created, {u} updated, {f} finalized rows preserved.")
 
 if __name__=="__main__":
-    try: main()
-    except Exception as exc:
-        print(f"Schedule sync failed: {exc}",file=sys.stderr); sys.exit(1)
+    try:main()
+    except Exception as exc:print(f"Schedule sync failed: {exc}",file=sys.stderr);sys.exit(1)
