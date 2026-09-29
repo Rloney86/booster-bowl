@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Sync remaining 2026 VHSL Class 2-6 varsity football schedules into Supabase."""
+"""Sync remaining 2026 VHSL Class 2-6 varsity football schedules into Supabase.
+
+Matchups are reconciled by date + unordered team pair so a corrected home/away
+orientation updates the existing Supabase row in place. This preserves game IDs,
+picks, scoring links, and finalized results.
+"""
 import hashlib
 import os
 import re
@@ -30,8 +35,7 @@ def clean(value):
 
 def week_for_date(game_date):
     for week, (start, end) in WEEK_WINDOWS.items():
-        if start <= game_date <= end:
-            return week
+        if start <= game_date <= end: return week
     return None
 
 def display_team(value):
@@ -47,8 +51,14 @@ def team_key(value):
     value = re.sub(r"[^a-z0-9]+", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 
+def matchup_key(game_date, team_a, team_b):
+    teams = sorted((team_key(team_a), team_key(team_b)))
+    return (str(game_date), teams[0], teams[1])
+
 def stable_source_id(game_date, away, home):
-    return hashlib.sha256(f"{SEASON}|{game_date}|{team_key(away)}|{team_key(home)}".encode()).hexdigest()[:32]
+    # Orientation-independent so correcting home/away never creates a new game identity.
+    key = matchup_key(game_date, away, home)
+    return hashlib.sha256(f"{SEASON}|{'|'.join(key)}".encode()).hexdigest()[:32]
 
 def looks_like_team_heading(line):
     candidate = re.sub(r"\s*\(\d+\s+games?\)\s*$", "", line, flags=re.I).strip()
@@ -59,7 +69,7 @@ def looks_like_team_heading(line):
     return bool(letters) and candidate==candidate.upper()
 
 def parse_schedule():
-    response=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/2.0"}); response.raise_for_status()
+    response=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/3.0"}); response.raise_for_status()
     soup=BeautifulSoup(response.text,"html.parser"); article=soup.find("article") or soup
     lines=[clean(x) for x in article.get_text("\n").splitlines() if clean(x)]
     current_class=current_region=current_team=None; teams={}; raw_games=[]
@@ -80,9 +90,22 @@ def parse_schedule():
         opponent=display_team(opponent_text[3:].strip() if is_away else opponent_text)
         game_date=date(SEASON,MONTHS[month.title()],int(day)); week=week_for_date(game_date)
         if not week: continue
-        raw_games.append({"date":game_date.isoformat(),"week":week,"away_team":opponent if is_away else current_team,"home_team":current_team if is_away else opponent})
-    unique={}
-    for game in raw_games: unique[(game["date"],team_key(game["away_team"]),team_key(game["home_team"]))]=game
+        raw_games.append({"date":game_date.isoformat(),"week":week,"away_team":current_team if is_away else opponent,"home_team":opponent if is_away else current_team,"listed_by":current_team})
+
+    # Reconcile the two team schedule entries for each game by unordered matchup.
+    # If both schools are in Classes 2-6 they should independently agree on venue.
+    unique={}; conflicts=[]
+    for game in raw_games:
+        key=matchup_key(game["date"],game["away_team"],game["home_team"])
+        prior=unique.get(key)
+        if prior and (team_key(prior["away_team"]) != team_key(game["away_team"]) or team_key(prior["home_team"]) != team_key(game["home_team"])):
+            conflicts.append((prior,game))
+            continue
+        unique[key]=game
+    if conflicts:
+        sample="; ".join(f"{a['date']} {a['away_team']} at {a['home_team']} vs {b['away_team']} at {b['home_team']}" for a,b in conflicts[:5])
+        raise RuntimeError(f"Home/away source conflicts detected ({len(conflicts)}): {sample}")
+
     now_iso=datetime.now(tz=ZoneInfo("UTC")).isoformat(); rows=[]
     for game in unique.values():
         away_meta=teams.get(team_key(game["away_team"])); home_meta=teams.get(team_key(game["home_team"]))
@@ -97,12 +120,16 @@ def validate(rows):
     if len(rows)<150: raise RuntimeError(f"Only {len(rows)} unique games parsed; expected a statewide slate. Refusing live sync.")
     classified=sum(1 for row in rows if row.get("away_class") or row.get("home_class"))
     if classified<int(len(rows)*.90): raise RuntimeError(f"Only {classified}/{len(rows)} games have at least one Class 2-6 team; refusing sync.")
+    # Regression guard for the known Week 6 venue issue.
+    jm=[r for r in rows if r["week"]==6 and {team_key(r["away_team"]),team_key(r["home_team"])}=={team_key("John Marshall"),team_key("Woodbridge")}]
+    if len(jm)!=1 or team_key(jm[0]["away_team"])!=team_key("John Marshall") or team_key(jm[0]["home_team"])!=team_key("Woodbridge"):
+        raise RuntimeError("Venue validation failed: expected John Marshall at Woodbridge in Week 6.")
+    print("Venue check: John Marshall at Woodbridge OK")
     return counts
 
 def check_response(response, operation):
     if response.ok: return
     body=response.text[:2000]
-    # Supabase errors do not echo credentials, but defensively redact configured secrets.
     for secret in (os.getenv("SUPABASE_SERVICE_ROLE_KEY"),):
         if secret: body=body.replace(secret,"[REDACTED]")
     raise RuntimeError(f"Supabase {operation} failed: HTTP {response.status_code}; response: {body}")
@@ -110,13 +137,13 @@ def check_response(response, operation):
 def sync(rows):
     base_url=os.environ["SUPABASE_URL"].rstrip("/"); key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     headers={"apikey":key,"Authorization":f"Bearer {key}","Content-Type":"application/json"}
-    response=requests.get(f"{base_url}/rest/v1/games?select=id,season,week,away_team,home_team,source_game_id,is_final&season=eq.{SEASON}&week=gte.6&week=lte.11",headers=headers,timeout=45)
+    response=requests.get(f"{base_url}/rest/v1/games?select=id,season,week,away_team,home_team,source_game_id,is_final,kickoff_at&season=eq.{SEASON}&week=gte.6&week=lte.11",headers=headers,timeout=45)
     check_response(response,"initial games read"); existing=response.json()
     by_source={row.get("source_game_id"):row for row in existing if row.get("source_game_id")}
-    by_matchup={(row["week"],team_key(row["away_team"]),team_key(row["home_team"])):row for row in existing}
+    by_matchup={matchup_key(str(row.get("kickoff_at") or "")[:10],row["away_team"],row["home_team"]):row for row in existing}
     created=updated=skipped_final=0
     for row in rows:
-        existing_row=by_source.get(row["source_game_id"]) or by_matchup.get((row["week"],team_key(row["away_team"]),team_key(row["home_team"])))
+        existing_row=by_source.get(row["source_game_id"]) or by_matchup.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
         if existing_row and existing_row.get("is_final"): skipped_final+=1; continue
         if existing_row:
             resp=requests.patch(f"{base_url}/rest/v1/games?id=eq.{existing_row['id']}",headers={**headers,"Prefer":"return=minimal"},json=row,timeout=45); operation=f"update game id {existing_row['id']}"; updated+=1
