@@ -4,12 +4,18 @@
 Matchups are reconciled by date + unordered team pair so a corrected home/away
 orientation updates the existing Supabase row in place. This preserves game IDs,
 picks, scoring links, and finalized results.
+
+The source is intended to be varsity-only, but schedule feeds can occasionally
+contain duplicate or lower-level rows. Before touching Supabase we therefore
+reject suspicious same-team/same-week slates instead of guessing which game is
+varsity. That makes bad source data fail closed for manual verification against
+an official athletics schedule / MaxPreps.
 """
 import hashlib
 import os
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -69,7 +75,7 @@ def looks_like_team_heading(line):
     return bool(letters) and candidate==candidate.upper()
 
 def parse_schedule():
-    response=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/3.0"}); response.raise_for_status()
+    response=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/3.1"}); response.raise_for_status()
     soup=BeautifulSoup(response.text,"html.parser"); article=soup.find("article") or soup
     lines=[clean(x) for x in article.get_text("\n").splitlines() if clean(x)]
     current_class=current_region=current_team=None; teams={}; raw_games=[]
@@ -113,6 +119,34 @@ def parse_schedule():
         rows.append({"season":SEASON,"week":game["week"],"away_team":game["away_team"],"home_team":game["home_team"],"kickoff_at":kickoff,"sport":"football","away_class":f"Class {away_meta[0]}" if away_meta else None,"away_region":f"Region {away_meta[1]}" if away_meta and away_meta[1] else None,"home_class":f"Class {home_meta[0]}" if home_meta else None,"home_region":f"Region {home_meta[1]}" if home_meta and home_meta[1] else None,"source":SOURCE,"source_game_id":stable_source_id(game["date"],game["away_team"],game["home_team"]),"source_url":SOURCE_URL,"synced_at":now_iso,"sync_status":"scheduled"})
     return rows
 
+def validate_varsity_weekly_slates(rows):
+    """Fail closed when the source makes one school appear in >1 game in a week.
+
+    A real varsity schedule can occasionally have an unusual date, so we do not
+    assume Thursday=JV or Friday=varsity. Multiple games in one Booster Bowl week
+    are instead treated as ambiguous and must be verified before publication.
+    """
+    team_week=defaultdict(list)
+    for row in rows:
+        for team in (row["away_team"],row["home_team"]):
+            team_week[(row["week"],team_key(team))].append(row)
+
+    suspicious=[]
+    for (week,_), games in team_week.items():
+        # Each unique row is already deduped by date + unordered matchup above.
+        if len(games)>1:
+            team=next(t for t in (games[0]["away_team"],games[0]["home_team"]) if team_key(t)==_)
+            descriptions=sorted(f"{str(g['kickoff_at'])[:10]} {g['away_team']} at {g['home_team']}" for g in games)
+            suspicious.append((week,team,descriptions))
+
+    if suspicious:
+        sample="; ".join(f"W{week} {team}: {' | '.join(games)}" for week,team,games in suspicious[:12])
+        raise RuntimeError(
+            f"Varsity schedule validation found {len(suspicious)} team-week conflicts. "
+            "Possible JV/duplicate schedule contamination; verify against the school's official athletics schedule or MaxPreps before syncing. "
+            f"Conflicts: {sample}"
+        )
+
 def validate(rows):
     if not rows: raise RuntimeError("No Week 6-11 Class 2-6 games were parsed.")
     counts=Counter(row["week"] for row in rows); missing=[w for w in WEEK_WINDOWS if counts[w]==0]
@@ -120,6 +154,7 @@ def validate(rows):
     if len(rows)<150: raise RuntimeError(f"Only {len(rows)} unique games parsed; expected a statewide slate. Refusing live sync.")
     classified=sum(1 for row in rows if row.get("away_class") or row.get("home_class"))
     if classified<int(len(rows)*.90): raise RuntimeError(f"Only {classified}/{len(rows)} games have at least one Class 2-6 team; refusing sync.")
+    validate_varsity_weekly_slates(rows)
     # Regression guard for the known Week 6 venue issue.
     jm=[r for r in rows if r["week"]==6 and {team_key(r["away_team"]),team_key(r["home_team"])}=={team_key("John Marshall"),team_key("Woodbridge")}]
     if len(jm)!=1 or team_key(jm[0]["away_team"])!=team_key("John Marshall") or team_key(jm[0]["home_team"])!=team_key("Woodbridge"):
