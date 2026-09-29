@@ -6,11 +6,56 @@
     {
       "action": "replace",
       "week": 6,
-      "matchup": ["John Marshall", "Woodbridge"],
+      "matchup": [
+        "John Marshall",
+        "Woodbridge"
+      ],
       "date": "2026-10-02",
       "away_team": "John Marshall",
       "home_team": "Woodbridge",
       "reason": "Verified varsity venue: John Marshall is away at Woodbridge."
+    },
+    {
+      "action": "exclude",
+      "week": 6,
+      "matchup": [
+        "Huguenot",
+        "Landstown"
+      ],
+      "date": "2026-10-02",
+      "reason": "Exclude non-varsity/contaminated row. Verified varsity games are Huguenot at L.C. Bird and Green Run at Landstown on Oct. 2."
+    },
+    {
+      "action": "exclude",
+      "week": 6,
+      "matchup": [
+        "Langley",
+        "James Robinson"
+      ],
+      "date": "2026-10-02",
+      "reason": "Exclude contaminated row. Verified varsity games are McLean at Robinson and Oakton at Langley on Oct. 2."
+    },
+    {
+      "action": "replace",
+      "week": 6,
+      "matchup": [
+        "James Monroe",
+        "Caroline"
+      ],
+      "date": "2026-10-02",
+      "away_team": "Caroline",
+      "home_team": "James Monroe",
+      "reason": "Verified varsity orientation: Caroline is away at James Monroe on Oct. 2."
+    },
+    {
+      "action": "exclude",
+      "week": 6,
+      "matchup": [
+        "Dinwiddie",
+        "Hopewell"
+      ],
+      "date": "2026-10-02",
+      "reason": "Exclude duplicate/non-varsity date. Verified varsity game is Dinwiddie at Hopewell on Thursday Oct. 1."
     }
   ]
 }
