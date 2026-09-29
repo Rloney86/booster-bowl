@@ -47,6 +47,7 @@ def load_overrides():
 
 def override_matches(game,rule):
     if rule.get("week") and game["week"]!=rule["week"]:return False
+    if rule.get("date") and game["date"]!=rule["date"]:return False
     wanted={team_key(x) for x in rule.get("matchup",[])}
     actual={team_key(game["away_team"]),team_key(game["home_team"])}
     return len(wanted)==2 and wanted==actual
