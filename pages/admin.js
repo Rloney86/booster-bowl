@@ -47,22 +47,23 @@ export default function AdminScores() {
     const winner = awayScore > homeScore ? game.away_team : game.home_team;
     if (!window.confirm(`Finalize ${game.away_team} ${awayScore} — ${game.home_team} ${homeScore}? Winner: ${winner}. This immediately affects leaderboard scoring.`)) return;
     setSavingId(game.id); setMessage("");
-    const { error } = await supabase.from("games").update({ away_score: awayScore, home_score: homeScore, winner, is_final: true }).eq("id", game.id).eq("season", SEASON).eq("week", CURRENT_WEEK);
+    const { data, error } = await supabase.rpc("admin_finalize_game", {
+      p_game_id: game.id,
+      p_season: SEASON,
+      p_week: CURRENT_WEEK,
+      p_away_score: awayScore,
+      p_home_score: homeScore,
+    });
     setSavingId(null);
-    if (error) return setMessage("Score was NOT saved: " + error.message + " If this is a permission error, the database is correctly blocking non-admin writes until an admin policy is added.");
+    if (error) return setMessage("Score was NOT saved: " + error.message);
+    if (!data || data.is_final !== true || Number(data.id) !== Number(game.id)) return setMessage("Score was NOT confirmed by the database. Refresh and verify before continuing.");
     setMessage(`✅ Final saved: ${winner} won ${Math.max(awayScore, homeScore)}–${Math.min(awayScore, homeScore)}. Leaderboard scoring will use this result.`);
     await loadGames();
   }
 
   async function reopen(game) {
     if (!user) return setMessage("Sign in first.");
-    if (!window.confirm(`Reopen ${game.away_team} at ${game.home_team}? Its result will stop counting until you finalize it again.`)) return;
-    setSavingId(game.id); setMessage("");
-    const { error } = await supabase.from("games").update({ winner: null, is_final: false }).eq("id", game.id).eq("season", SEASON).eq("week", CURRENT_WEEK);
-    setSavingId(null);
-    if (error) return setMessage("Game was NOT reopened: " + error.message);
-    setMessage("Game reopened. Its result is no longer counted in ratings.");
-    await loadGames();
+    setMessage("Reopening finalized games is temporarily disabled while the secure admin reopen function is being added.");
   }
 
   return <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
