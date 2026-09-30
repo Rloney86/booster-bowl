@@ -24,7 +24,7 @@ WEEK_WINDOWS = {
     11: (date(2026, 11, 2), date(2026, 11, 7)),
 }
 REGION_RE = re.compile(r"^Region\s+([2-6])([A-D])$", re.I)
-HEADING_RE = re.compile(r"^(.+?)\[([1-6])\]([A-Za-z].*)$")
+HEADING_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s+(.+)$")
 DATE_PAIR_RE = re.compile(
     r"(.+?)(\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap])(?=\s|$)",
     re.I,
