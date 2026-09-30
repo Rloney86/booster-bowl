@@ -25,6 +25,8 @@ WEEK_WINDOWS = {
 }
 REGION_RE = re.compile(r"^Region\s+([2-6])([A-D])$", re.I)
 HEADING_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*(.+)$")
+CLASS_ONLY_RE = re.compile(r"^\[([1-6])\]$")
+DATE_LINE_RE = re.compile(r"^\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap]$", re.I)
 DATE_PAIR_RE = re.compile(
     r"(.+?)(\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap])(?=\s|$)",
     re.I,
