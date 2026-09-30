@@ -144,6 +144,9 @@ def parse_official_schedule():
                 and not DATE_LINE_RE.match(line)
                 and not REGION_RE.match(line)
                 and "[" not in line
+                and not re.search(r"\\bBYE\\b", line, re.I)
+                and not line.startswith(("@", "**"))
+                and not line.upper().startswith("CONFLICT")
                 and district_line
                 and not DATE_LINE_RE.match(district_line)
                 and not REGION_RE.match(district_line)
