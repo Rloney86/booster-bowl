@@ -26,6 +26,12 @@ WEEK_WINDOWS = {
 REGION_RE = re.compile(r"^Region\s+([2-6])([A-D])$", re.I)
 TEAM_RE = re.compile(r"^(.+?)\s*\[([1-6])\]$")
 
+# Narrow, independently verified resolutions for contradictions inside the official
+# master PDF itself. Keep this list explicit so a new conflict still fails closed.
+VERIFIED_VENUE_RESOLUTIONS = {
+    ("2026-10-30", "meridian", "skyline"): ("Skyline", "Meridian"),
+}
+
 
 def clean(value):
     return re.sub(r"\s+", " ", value.replace("\xa0", " ").replace("’", "'").replace("–", "-").replace("—", "-")).strip()
@@ -74,7 +80,6 @@ def download_pages():
 
 
 def parse_date_cell(raw):
-    # pypdf layout mode spaces individual digits in the PDF ("1 0 / 2   7 p").
     text = raw.replace("\xa0", " ")
     text = re.sub(r"(?<=\d) (?=\d)", "", text)
     text = re.sub(r"\s*/\s*", "/", text)
@@ -113,7 +118,6 @@ def parse_official_schedule():
         starts = [m.start() for m in re.finditer(r"Week \d+", header)]
         if len(starts) != 12:
             raise RuntimeError(f"Expected 12 week columns in VHSL PDF, found {len(starts)}")
-        # Week labels mark column centers. Midpoints give stable week-cell boundaries.
         week_bounds = [starts[0] - 18] + [(starts[i] + starts[i + 1]) // 2 for i in range(11)] + [max(len(x) for x in lines) + 5]
 
         i = 0
@@ -173,7 +177,13 @@ def parse_official_schedule():
         if prior:
             same_venue = team_key(prior["away_team"]) == team_key(game["away_team"]) and team_key(prior["home_team"]) == team_key(game["home_team"])
             if not same_venue:
-                raise RuntimeError(f"Official VHSL venue conflict: {prior['away_team']} at {prior['home_team']} vs {game['away_team']} at {game['home_team']}")
+                resolution = VERIFIED_VENUE_RESOLUTIONS.get(key)
+                if not resolution:
+                    raise RuntimeError(f"Official VHSL venue conflict: {prior['away_team']} at {prior['home_team']} vs {game['away_team']} at {game['home_team']}")
+                away, home = resolution
+                prior["away_team"] = away
+                prior["home_team"] = home
+                print(f"Verified official-PDF venue resolution applied: {away} at {home} on {game['date']}")
             if prior["kickoff_at"] != game["kickoff_at"]:
                 raise RuntimeError(f"Official VHSL kickoff conflict for {game['away_team']} at {game['home_team']}")
         else:
