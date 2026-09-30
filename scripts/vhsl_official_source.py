@@ -11,8 +11,8 @@ from pypdf import PdfReader
 
 SEASON = 2026
 FILE_ID = "1jpJ8LAEGjmX3oIC15zPZInAtp1L1UptY"
-DOWNLOAD_URL = `https://drive.google.com/uc?export=download&id=${FILE_ID}`
-PAGE_URL = `https://drive.google.com/file/d/${FILE_ID}/view`
+DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+PAGE_URL = f"https://drive.google.com/file/d/{FILE_ID}/view"
 SOURCE = "VHSL official master schedule"
 
 WEEK_WINDOWS = {
