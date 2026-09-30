@@ -92,24 +92,64 @@ def parse_official_schedule():
     region = None
     i = 0
 
+    def heading_at(index):
+        """Return (school, class, district, next_index) for VHSL school headings.
+
+        PDF extraction may emit headings as:
+          Huguenot [4] / Dominion
+          Huguenot [4]Dominion
+          Patrick Henry (Ashland) / [4] / Capital
+        Opponent rows such as "Huguenot [4]" are not headings because the
+        following line is a date/time rather than a district name.
+        """
+        line = lines[index]
+        hm = HEADING_RE.match(line)
+        if hm:
+            school = clean(hm.group(1))
+            school_class = int(hm.group(2))
+            district = clean(hm.group(3))
+            if district:
+                return school, school_class, district, index + 1
+            if index + 1 < len(lines):
+                next_line = lines[index + 1]
+                if (
+                    next_line
+                    and not DATE_LINE_RE.match(next_line)
+                    and not REGION_RE.match(next_line)
+                    and "[" not in next_line
+                ):
+                    return school, school_class, clean(next_line), index + 2
+
+        if index + 2 < len(lines):
+            cm = CLASS_ONLY_RE.match(lines[index + 1])
+            district_line = lines[index + 2]
+            if (
+                cm
+                and district_line
+                and not DATE_LINE_RE.match(district_line)
+                and not REGION_RE.match(district_line)
+                and "[" not in district_line
+            ):
+                return clean(line), int(cm.group(1)), clean(district_line), index + 3
+        return None
+
     while i < len(lines):
         rm = REGION_RE.match(lines[i])
         if rm:
             region = rm.group(2).upper()
             i += 1
             continue
-        hm = HEADING_RE.match(lines[i])
-        if not hm:
+
+        heading = heading_at(i)
+        if not heading:
             i += 1
             continue
 
-        school = clean(hm.group(1))
-        school_class = int(hm.group(2))
-        district = clean(hm.group(3))
+        school, school_class, district, content_start = heading
         teams[team_key(school)] = (school_class, region)
         parts = []
-        j = i + 1
-        while j < len(lines) and not REGION_RE.match(lines[j]) and not HEADING_RE.match(lines[j]):
+        j = content_start
+        while j < len(lines) and not REGION_RE.match(lines[j]) and not heading_at(j):
             if not lines[j].startswith("** District Game Week"):
                 parts.append(lines[j])
             j += 1
