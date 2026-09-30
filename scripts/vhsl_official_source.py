@@ -29,8 +29,9 @@ REGION_RE = re.compile(r"^Region\s+([2-6])([A-D])$", re.I)
 # "** Huguenot [4]9/18 7p ..." from being misclassified as headings while still
 # matching pypdf's compact extraction: "Huguenot[4]Dominion".
 HEADING_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*([A-Za-z][A-Za-z .&'()/-]*)$")
+SCHOOL_CLASS_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*$")
 CLASS_ONLY_RE = re.compile(r"^\[([1-6])\]$")
-DATE_LINE_RE = re.compile(r"^\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap]$", re.I)
+DATE_LINE_RE = re.compile(r"^\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap]\b", re.I)
 DATE_PAIR_RE = re.compile(
     r"(.+?)(\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap])(?=\s|$)",
     re.I,
@@ -116,15 +117,20 @@ def parse_official_schedule():
             district = clean(hm.group(3))
             if district:
                 return school, school_class, district, index + 1
-            if index + 1 < len(lines):
-                next_line = lines[index + 1]
-                if (
-                    next_line
-                    and not DATE_LINE_RE.match(next_line)
-                    and not REGION_RE.match(next_line)
-                    and "[" not in next_line
-                ):
-                    return school, school_class, clean(next_line), index + 2
+
+        # Some PDF engines keep "School [4]" together but place the district
+        # on the following line. Accept that shape only when the following line
+        # is not a game date, region header, or another class-tagged entry.
+        scm = SCHOOL_CLASS_RE.match(line)
+        if scm and index + 1 < len(lines):
+            next_line = lines[index + 1]
+            if (
+                next_line
+                and not DATE_LINE_RE.match(next_line)
+                and not REGION_RE.match(next_line)
+                and "[" not in next_line
+            ):
+                return clean(scm.group(1)), int(scm.group(2)), clean(next_line), index + 2
 
         if index + 2 < len(lines):
             cm = CLASS_ONLY_RE.match(lines[index + 1])
