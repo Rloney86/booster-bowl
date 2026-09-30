@@ -24,18 +24,11 @@ WEEK_WINDOWS = {
     11: (date(2026, 11, 2), date(2026, 11, 7)),
 }
 REGION_RE = re.compile(r"^Region\s+([2-6])([A-D])$", re.I)
-# A real school heading ends with a district name, not a date/time. Restricting
-# the suffix to district-like text prevents opponent rows such as
-# "** Huguenot [4]9/18 7p ..." from being misclassified as headings while still
-# matching pypdf's compact extraction: "Huguenot[4]Dominion".
 HEADING_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*([A-Za-z][A-Za-z .&'()/-]*)$")
 SCHOOL_CLASS_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*$")
 CLASS_ONLY_RE = re.compile(r"^\[([1-6])\]$")
 DATE_LINE_RE = re.compile(r"^\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap]\b", re.I)
-DATE_PAIR_RE = re.compile(
-    r"(.+?)(\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap])(?=\s|$)",
-    re.I,
-)
+DATE_PAIR_RE = re.compile(r"(.+?)(\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap])(?=\s|$)", re.I)
 
 def clean(value):
     return re.sub(r"\s+", " ", value.replace("\xa0", " ").replace("’", "'").replace("–", "-").replace("—", "-")).strip()
@@ -100,51 +93,28 @@ def parse_official_schedule():
     i = 0
 
     def heading_at(index):
-        """Return (school, class, district, next_index) for VHSL school headings.
-
-        PDF extraction may emit headings as:
-          Huguenot [4] / Dominion
-          Huguenot [4]Dominion
-          Patrick Henry (Ashland) / [4] / Capital
-        Opponent rows such as "Huguenot [4]" are not headings because the
-        following line is a date/time rather than a district name.
-        """
         line = lines[index]
         hm = HEADING_RE.match(line)
         if hm:
-            school = clean(hm.group(1))
-            school_class = int(hm.group(2))
-            district = clean(hm.group(3))
+            school = clean(hm.group(1)); school_class = int(hm.group(2)); district = clean(hm.group(3))
             if district:
                 return school, school_class, district, index + 1
 
-        # Some PDF engines keep "School [4]" together but place the district
-        # on the following line. Accept that shape only when the following line
-        # is not a game date, region header, or another class-tagged entry.
         scm = SCHOOL_CLASS_RE.match(line)
         if scm and index + 1 < len(lines):
             next_line = lines[index + 1]
-            if (
-                next_line
-                and not DATE_LINE_RE.match(next_line)
-                and not REGION_RE.match(next_line)
-                and "[" not in next_line
-            ):
+            if next_line and not DATE_LINE_RE.match(next_line) and not REGION_RE.match(next_line) and "[" not in next_line:
                 return clean(scm.group(1)), int(scm.group(2)), clean(next_line), index + 2
 
         if index + 2 < len(lines):
-            # Long school names can wrap before the class marker, e.g.
-            # "Richmond HS for the" / "Arts [4]" / "Dominion" or
-            # "Thomas Jefferson" / "(Richmond) [2]" / district.
             wrapped = SCHOOL_CLASS_RE.match(lines[index + 1])
             district_line = lines[index + 2]
             if (
-                wrapped
-                and line
+                wrapped and line
                 and not DATE_LINE_RE.match(line)
                 and not REGION_RE.match(line)
                 and "[" not in line
-                and not re.search(r"\\bBYE\\b", line, re.I)
+                and not re.search(r"\bBYE\b", line, re.I)
                 and not line.startswith(("@", "**"))
                 and not line.upper().startswith("CONFLICT")
                 and district_line
@@ -156,28 +126,17 @@ def parse_official_schedule():
                 return school, int(wrapped.group(2)), clean(district_line), index + 3
 
             cm = CLASS_ONLY_RE.match(lines[index + 1])
-            if (
-                cm
-                and district_line
-                and not DATE_LINE_RE.match(district_line)
-                and not REGION_RE.match(district_line)
-                and "[" not in district_line
-            ):
+            if cm and district_line and not DATE_LINE_RE.match(district_line) and not REGION_RE.match(district_line) and "[" not in district_line:
                 return clean(line), int(cm.group(1)), clean(district_line), index + 3
         return None
 
     while i < len(lines):
         rm = REGION_RE.match(lines[i])
         if rm:
-            region = rm.group(2).upper()
-            i += 1
-            continue
-
+            region = rm.group(2).upper(); i += 1; continue
         heading = heading_at(i)
         if not heading:
-            i += 1
-            continue
-
+            i += 1; continue
         school, school_class, district, content_start = heading
         teams[team_key(school)] = (school_class, region)
         parts = []
@@ -191,115 +150,50 @@ def parse_official_schedule():
 
     canonical = {compact_key(school): school for school, _, _, _, _ in school_blocks}
     candidates = []
-
     for school, school_class, _, _, schedule_text in school_blocks:
-        if school_class not in {2, 3, 4, 5, 6}:
-            continue
+        if school_class not in {2, 3, 4, 5, 6}: continue
         for match in DATE_PAIR_RE.finditer(schedule_text):
             opponent, _, away_marker = parse_opponent(match.group(1), canonical)
-            if not opponent:
-                continue
+            if not opponent: continue
             date_text, kickoff = match.group(2).split(" ", 1)
-            month, day = map(int, date_text.split("/"))
-            game_date = date(SEASON, month, day)
+            month, day = map(int, date_text.split("/")); game_date = date(SEASON, month, day)
             week = week_for_date(game_date)
-            if not week:
-                continue
-            away = school if away_marker else opponent
-            home = opponent if away_marker else school
-            candidates.append({
-                "date": game_date.isoformat(),
-                "week": week,
-                "away_team": away,
-                "home_team": home,
-                "kickoff_at": kickoff_iso(game_date, kickoff),
-                "listed_by": school,
-            })
+            if not week: continue
+            away = school if away_marker else opponent; home = opponent if away_marker else school
+            candidates.append({"date": game_date.isoformat(), "week": week, "away_team": away, "home_team": home, "kickoff_at": kickoff_iso(game_date, kickoff), "listed_by": school})
 
     grouped = defaultdict(list)
-    for game in candidates:
-        grouped[matchup_key(game["date"], game["away_team"], game["home_team"])].append(game)
-
-    unique = {}
-    venue_conflicts = []
-    kickoff_conflicts = []
-
+    for game in candidates: grouped[matchup_key(game["date"], game["away_team"], game["home_team"])].append(game)
+    unique = {}; venue_conflicts = []; kickoff_conflicts = []
     for key, found in grouped.items():
-        orientations = {(team_key(g["away_team"]), team_key(g["home_team"])) for g in found}
-        kickoffs = {g["kickoff_at"] for g in found}
-        if len(orientations) > 1:
-            venue_conflicts.append(found)
-            continue
-        if len(kickoffs) > 1:
-            kickoff_conflicts.append(found)
-            continue
+        orientations = {(team_key(g["away_team"]), team_key(g["home_team"])) for g in found}; kickoffs = {g["kickoff_at"] for g in found}
+        if len(orientations) > 1: venue_conflicts.append(found); continue
+        if len(kickoffs) > 1: kickoff_conflicts.append(found); continue
         unique[key] = found[0]
-
     if venue_conflicts:
-        sample = " | ".join(
-            " / ".join(f"{g['away_team']} at {g['home_team']}" for g in found)
-            for found in venue_conflicts[:5]
-        )
+        sample = " | ".join(" / ".join(f"{g['away_team']} at {g['home_team']}" for g in found) for found in venue_conflicts[:5])
         raise RuntimeError(f"Official VHSL source has {len(venue_conflicts)} unresolved venue conflicts: {sample}")
     if kickoff_conflicts:
-        sample = " | ".join(
-            f"{found[0]['away_team']} at {found[0]['home_team']}"
-            for found in kickoff_conflicts[:5]
-        )
+        sample = " | ".join(f"{found[0]['away_team']} at {found[0]['home_team']}" for found in kickoff_conflicts[:5])
         raise RuntimeError(f"Official VHSL source has {len(kickoff_conflicts)} unresolved kickoff conflicts: {sample}")
+    if teams.get(team_key("Huguenot")) != (4, "B"): raise RuntimeError(f"Expected Huguenot 4B, got {teams.get(team_key('Huguenot'))}")
+    if teams.get(team_key("Strasburg")) != (2, "B"): raise RuntimeError(f"Expected Strasburg 2B, got {teams.get(team_key('Strasburg'))}")
 
-    if teams.get(team_key("Huguenot")) != (4, "B"):
-        raise RuntimeError(f"Expected Huguenot 4B, got {teams.get(team_key('Huguenot'))}")
-    if teams.get(team_key("Strasburg")) != (2, "B"):
-        raise RuntimeError(f"Expected Strasburg 2B, got {teams.get(team_key('Strasburg'))}")
-
-    now = datetime.now(tz=ZoneInfo("UTC")).isoformat()
-    rows = []
+    now = datetime.now(tz=ZoneInfo("UTC")).isoformat(); rows = []
     for game in unique.values():
-        away_meta = teams.get(team_key(game["away_team"]))
-        home_meta = teams.get(team_key(game["home_team"]))
-        rows.append({
-            "season": SEASON,
-            "week": game["week"],
-            "away_team": game["away_team"],
-            "home_team": game["home_team"],
-            "kickoff_at": game["kickoff_at"],
-            "sport": "football",
-            "away_class": f"Class {away_meta[0]}" if away_meta else None,
-            "away_region": f"Region {away_meta[1]}" if away_meta else None,
-            "home_class": f"Class {home_meta[0]}" if home_meta else None,
-            "home_region": f"Region {home_meta[1]}" if home_meta else None,
-            "source": SOURCE,
-            "source_game_id": stable_source_id(game["date"], game["away_team"], game["home_team"]),
-            "source_url": PAGE_URL,
-            "synced_at": now,
-            "sync_status": "scheduled",
-        })
+        away_meta = teams.get(team_key(game["away_team"])); home_meta = teams.get(team_key(game["home_team"]))
+        rows.append({"season": SEASON, "week": game["week"], "away_team": game["away_team"], "home_team": game["home_team"], "kickoff_at": game["kickoff_at"], "sport": "football", "away_class": f"Class {away_meta[0]}" if away_meta else None, "away_region": f"Region {away_meta[1]}" if away_meta else None, "home_class": f"Class {home_meta[0]}" if home_meta else None, "home_region": f"Region {home_meta[1]}" if home_meta else None, "source": SOURCE, "source_game_id": stable_source_id(game["date"], game["away_team"], game["home_team"]), "source_url": PAGE_URL, "synced_at": now, "sync_status": "scheduled"})
 
     team_week = defaultdict(list)
     for row in rows:
-        for team in (row["away_team"], row["home_team"]):
-            team_week[(row["week"], team_key(team))].append(row)
+        for team in (row["away_team"], row["home_team"]): team_week[(row["week"], team_key(team))].append(row)
     multi = [(key, found) for key, found in team_week.items() if len(found) > 1]
     if multi:
         print(f"NOTICE: {len(multi)} official team-week multi-game cases retained (possible makeups/reschedules).")
-        for (week, team), found in multi[:10]:
-            print(
-                f"  W{week} {team}: " +
-                " | ".join(f"{g['away_team']} at {g['home_team']} ({str(g['kickoff_at'])[:10]})" for g in found)
-            )
+        for (week, team), found in multi[:10]: print(f"  W{week} {team}: " + " | ".join(f"{g['away_team']} at {g['home_team']} ({str(g['kickoff_at'])[:10]})" for g in found))
 
-    jm = [
-        row for row in rows
-        if row["week"] == 6
-        and {team_key(row["away_team"]), team_key(row["home_team"])}
-        == {team_key("John Marshall"), team_key("Woodbridge")}
-    ]
+    jm = [row for row in rows if row["week"] == 6 and {team_key(row["away_team"]), team_key(row["home_team"])} == {team_key("John Marshall"), team_key("Woodbridge")}]
     if len(jm) != 1 or team_key(jm[0]["away_team"]) != team_key("John Marshall") or team_key(jm[0]["home_team"]) != team_key("Woodbridge"):
         raise RuntimeError("Expected official Week 6 matchup: John Marshall at Woodbridge.")
-
-    print(
-        f"Official VHSL source checks passed: {len(teams)} teams; {len(rows)} Week 6-11 games; "
-        "John Marshall @ Woodbridge; Huguenot 4B; Strasburg 2B"
-    )
+    print(f"Official VHSL source checks passed: {len(teams)} teams; {len(rows)} Week 6-11 games; John Marshall @ Woodbridge; Huguenot 4B; Strasburg 2B")
     return rows
