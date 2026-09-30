@@ -24,7 +24,11 @@ WEEK_WINDOWS = {
     11: (date(2026, 11, 2), date(2026, 11, 7)),
 }
 REGION_RE = re.compile(r"^Region\s+([2-6])([A-D])$", re.I)
-HEADING_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*(.+)$")
+# A real school heading ends with a district name, not a date/time. Restricting
+# the suffix to district-like text prevents opponent rows such as
+# "** Huguenot [4]9/18 7p ..." from being misclassified as headings while still
+# matching pypdf's compact extraction: "Huguenot[4]Dominion".
+HEADING_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*([A-Za-z][A-Za-z .&'()/-]*)$")
 CLASS_ONLY_RE = re.compile(r"^\[([1-6])\]$")
 DATE_LINE_RE = re.compile(r"^\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap]$", re.I)
 DATE_PAIR_RE = re.compile(
@@ -245,8 +249,6 @@ def parse_official_schedule():
             "sync_status": "scheduled",
         })
 
-    # Multiple official varsity games can legitimately fall in one VHSL week due to
-    # makeup/rescheduled games. Preserve them, but print them for admin awareness.
     team_week = defaultdict(list)
     for row in rows:
         for team in (row["away_team"], row["home_team"]):
