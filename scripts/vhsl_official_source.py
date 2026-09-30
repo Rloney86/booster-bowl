@@ -133,8 +133,26 @@ def parse_official_schedule():
                 return clean(scm.group(1)), int(scm.group(2)), clean(next_line), index + 2
 
         if index + 2 < len(lines):
-            cm = CLASS_ONLY_RE.match(lines[index + 1])
+            # Long school names can wrap before the class marker, e.g.
+            # "Richmond HS for the" / "Arts [4]" / "Dominion" or
+            # "Thomas Jefferson" / "(Richmond) [2]" / district.
+            wrapped = SCHOOL_CLASS_RE.match(lines[index + 1])
             district_line = lines[index + 2]
+            if (
+                wrapped
+                and line
+                and not DATE_LINE_RE.match(line)
+                and not REGION_RE.match(line)
+                and "[" not in line
+                and district_line
+                and not DATE_LINE_RE.match(district_line)
+                and not REGION_RE.match(district_line)
+                and "[" not in district_line
+            ):
+                school = clean(f"{line} {wrapped.group(1)}")
+                return school, int(wrapped.group(2)), clean(district_line), index + 3
+
+            cm = CLASS_ONLY_RE.match(lines[index + 1])
             if (
                 cm
                 and district_line
