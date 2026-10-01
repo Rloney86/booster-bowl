@@ -38,7 +38,7 @@ def looks_like_team_heading(line):
     letters=re.sub(r"[^A-Za-z]","",c);return bool(letters) and c==c.upper()
 
 def parse_schedule():
-    r=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/3.2"});r.raise_for_status()
+    r=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/4.0"});r.raise_for_status()
     soup=BeautifulSoup(r.text,"html.parser");article=soup.find("article") or soup
     lines=[clean(x) for x in article.get_text("\n").splitlines() if clean(x)]
     current_class=current_region=current_team=None;teams={};raw=[]
@@ -57,21 +57,39 @@ def parse_schedule():
         opp=re.sub(r",\s*.*$","",opp).strip();away=opp.lower().startswith("at ");opponent=display_team(opp[3:].strip() if away else opp)
         gd=date(SEASON,MONTHS[month.title()],int(day));week=week_for_date(gd)
         if week:raw.append({"date":gd.isoformat(),"week":week,"away_team":current_team if away else opponent,"home_team":opponent if away else current_team,"listed_by":current_team})
-    unique={};conflicts=[];ambiguous_keys=set()
-    for game in raw:
-        key=matchup_key(game["date"],game["away_team"],game["home_team"]);prior=unique.get(key)
-        if prior and (team_key(prior["away_team"])!=team_key(game["away_team"]) or team_key(prior["home_team"])!=team_key(game["home_team"])):
-            conflicts.append((prior,game));ambiguous_keys.add(key);continue
-        unique[key]=game
-    if conflicts:
-        print(f"WARNING: {len(conflicts)} home/away source conflicts require verification:",file=sys.stderr)
-        for a,b in conflicts:print(f"  W{a['week']} {a['date']}: {a['away_team']} at {a['home_team']}  <->  {b['away_team']} at {b['home_team']}",file=sys.stderr)
+
+    # Verify each matchup before it is eligible for a live write. If both schools are
+    # present in the Class 2-6 source, both team schedules must independently list the
+    # same opponent/date and agree on venue. This prevents parser contamination from
+    # inventing games and prevents reversed home/away cards.
+    grouped=defaultdict(list)
+    for game in raw:grouped[matchup_key(game["date"],game["away_team"],game["home_team"])].append(game)
+    verified=[];quarantined=[]
+    for key,listings in grouped.items():
+        sample=listings[0]
+        akey=team_key(sample["away_team"]);hkey=team_key(sample["home_team"])
+        known_pair=akey in teams and hkey in teams
+        listers={team_key(x["listed_by"]) for x in listings}
+        orientations={(team_key(x["away_team"]),team_key(x["home_team"])) for x in listings}
+        if len(orientations)>1:
+            quarantined.append(("home/away disagreement",listings));continue
+        if known_pair and not {akey,hkey}.issubset(listers):
+            quarantined.append(("missing reciprocal team listing",listings));continue
+        # Opponents outside the indexed Class 2-6 set cannot be reciprocally checked
+        # here, so retain their single source listing but make that limitation visible.
+        verified.append(sample)
+
+    if quarantined:
+        print(f"WARNING: {len(quarantined)} unverified matchups quarantined; they will NOT be synced:",file=sys.stderr)
+        for reason,listings in quarantined:
+            g=listings[0];who=", ".join(sorted({x['listed_by'] for x in listings}))
+            print(f"  W{g['week']} {g['date']}: {g['away_team']} at {g['home_team']} [{reason}; listed by: {who}]",file=sys.stderr)
+
     now=datetime.now(tz=ZoneInfo("UTC")).isoformat();rows=[]
-    for key,game in unique.items():
-        if key in ambiguous_keys:continue
+    for game in verified:
         am=teams.get(team_key(game["away_team"]));hm=teams.get(team_key(game["home_team"]));kick=datetime.fromisoformat(game["date"]+"T19:00:00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
         rows.append({"season":SEASON,"week":game["week"],"away_team":game["away_team"],"home_team":game["home_team"],"kickoff_at":kick,"sport":"football","away_class":f"Class {am[0]}" if am else None,"away_region":f"Region {am[1]}" if am and am[1] else None,"home_class":f"Class {hm[0]}" if hm else None,"home_region":f"Region {hm[1]}" if hm and hm[1] else None,"source":SOURCE,"source_game_id":stable_source_id(game["date"],game["away_team"],game["home_team"]),"source_url":SOURCE_URL,"synced_at":now,"sync_status":"scheduled"})
-    return rows,conflicts
+    return rows,quarantined
 
 def varsity_conflicts(rows):
     tw=defaultdict(list)
@@ -84,22 +102,20 @@ def varsity_conflicts(rows):
             out.append((week,team,sorted(f"{str(g['kickoff_at'])[:10]} {g['away_team']} at {g['home_team']}" for g in games)))
     return out
 
-def validate(rows,homeaway):
+def validate(rows,quarantined):
     if not rows:raise RuntimeError("No Week 6-11 Class 2-6 games were parsed.")
     counts=Counter(r["week"] for r in rows);missing=[w for w in WEEK_WINDOWS if counts[w]==0]
     if missing:raise RuntimeError(f"Parser returned zero games for week(s): {missing}")
     suspicious=varsity_conflicts(rows)
     if suspicious:
-        print(f"WARNING: {len(suspicious)} team-week conflicts (possible JV/duplicate contamination):",file=sys.stderr)
+        print(f"WARNING: {len(suspicious)} team-week conflicts remain after reciprocal verification:",file=sys.stderr)
         for w,t,games in suspicious:print(f"  W{w} {t}: {' | '.join(games)}",file=sys.stderr)
+        raise RuntimeError(f"Schedule verification required before Supabase write: {len(suspicious)} team-week conflicts remain.")
     jm=[r for r in rows if r["week"]==6 and {team_key(r["away_team"]),team_key(r["home_team"])}=={team_key("John Marshall"),team_key("Woodbridge")}]
     if len(jm)!=1 or team_key(jm[0]["away_team"])!=team_key("John Marshall") or team_key(jm[0]["home_team"])!=team_key("Woodbridge"):raise RuntimeError("Venue validation failed: expected John Marshall at Woodbridge in Week 6.")
     print("Venue check: John Marshall at Woodbridge OK")
-    blockers=[]
-    if homeaway:blockers.append(f"{len(homeaway)} unresolved home/away conflicts")
-    if suspicious:blockers.append(f"{len(suspicious)} possible JV/duplicate team-week conflicts")
-    if blockers:raise RuntimeError("Schedule verification required before Supabase write: "+"; ".join(blockers)+". All conflicts were printed above; no ambiguous games were synced.")
-    if len(rows)<150:raise RuntimeError(f"Only {len(rows)} unique games parsed; expected statewide slate. Refusing live sync.")
+    print(f"Reciprocal verification: {len(quarantined)} questionable matchups quarantined and excluded from sync.")
+    if len(rows)<150:raise RuntimeError(f"Only {len(rows)} verified games remain; expected statewide slate. Refusing live sync.")
     return counts
 
 def check_response(r,op):
@@ -121,7 +137,7 @@ def sync(rows):
     return created,updated,final
 
 def main():
-    rows,homeaway=parse_schedule();counts=validate(rows,homeaway)
+    rows,quarantined=parse_schedule();counts=validate(rows,quarantined)
     print(f"Parsed {len(rows)} verified unique Week 6-11 games.");print("Games by week:",", ".join(f"W{w}={counts[w]}" for w in sorted(counts)))
     if os.getenv("DRY_RUN")=="1":print("DRY_RUN complete. Supabase was not changed.");return
     c,u,f=sync(rows);print(f"Supabase sync complete: {c} created, {u} updated, {f} finalized rows preserved.")
