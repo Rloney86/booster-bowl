@@ -14,6 +14,12 @@ TARGET_CLASSES={2,3,4,5,6}
 MONTHS={"Sep":9,"Oct":10,"Nov":11}
 WEEK_WINDOWS={6:(date(2026,9,28),date(2026,10,4)),7:(date(2026,10,5),date(2026,10,11)),8:(date(2026,10,12),date(2026,10,18)),9:(date(2026,10,19),date(2026,10,25)),10:(date(2026,10,26),date(2026,11,1)),11:(date(2026,11,2),date(2026,11,8))}
 
+# Keep source aliases stable for matching while presenting a clear local-school name.
+TEAM_DISPLAY_ALIASES={
+    "james river midlothian":"James River (Chesterfield)",
+    "james river chesterfield":"James River (Chesterfield)",
+}
+
 def clean(v): return re.sub(r"\s+"," ",v.replace("’","'").replace("–","-").replace("—","-")).strip()
 def week_for_date(d):
     for w,(a,b) in WEEK_WINDOWS.items():
@@ -24,7 +30,8 @@ def display_team(v):
     if v==v.upper():v=v.title()
     v=re.sub(r"'S\b","'s",v)
     for a,b in {"J.r.":"J.R.","L.c.":"L.C.","C.d.":"C.D.","I.c.":"I.C.","C.g.":"C.G."}.items():v=v.replace(a,b)
-    return v
+    alias_key=re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",v.lower())).strip()
+    return TEAM_DISPLAY_ALIASES.get(alias_key,v)
 
 def team_key(v): return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",clean(v).lower())).strip()
 def matchup_key(d,a,b):
@@ -58,10 +65,6 @@ def parse_schedule():
         gd=date(SEASON,MONTHS[month.title()],int(day));week=week_for_date(gd)
         if week:raw.append({"date":gd.isoformat(),"week":week,"away_team":current_team if away else opponent,"home_team":opponent if away else current_team,"listed_by":current_team})
 
-    # Verify each matchup before it is eligible for a live write. If both schools are
-    # present in the Class 2-6 source, both team schedules must independently list the
-    # same opponent/date and agree on venue. This prevents parser contamination from
-    # inventing games and prevents reversed home/away cards.
     grouped=defaultdict(list)
     for game in raw:grouped[matchup_key(game["date"],game["away_team"],game["home_team"])].append(game)
     verified=[];quarantined=[]
@@ -75,8 +78,6 @@ def parse_schedule():
             quarantined.append(("home/away disagreement",listings));continue
         if known_pair and not {akey,hkey}.issubset(listers):
             quarantined.append(("missing reciprocal team listing",listings));continue
-        # Opponents outside the indexed Class 2-6 set cannot be reciprocally checked
-        # here, so retain their single source listing but make that limitation visible.
         verified.append(sample)
 
     if quarantined:
