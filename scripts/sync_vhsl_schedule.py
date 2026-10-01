@@ -37,11 +37,17 @@ def matchup_key(d,a,b):
     t=sorted((team_key(a),team_key(b)));return(str(d),t[0],t[1])
 def stable_source_id(d,a,b): return hashlib.sha256(f"{SEASON}|{'|'.join(matchup_key(d,a,b))}".encode()).hexdigest()[:32]
 def looks_like_team_heading(line):
-    c=re.sub(r"\s*\(\d+\s+games?\)\s*$","",line,flags=re.I).strip()
-    if not c or len(c)>70 or re.match(r"^(W|L|TIE|SEP|OCT|NOV)\b",c,re.I):return False
-    if c.upper().startswith(("REGION ","CLASS ")):return False
-    if any(x in c.upper() for x in ("SCHEDULE","RESULT","SCOREBOARD","FOOTBALL")):return False
-    letters=re.sub(r"[^A-Za-z]","",c);return bool(letters) and c==c.upper()
+    c = re.sub(r"\s*\(\d+\s+games?\)\s*$", "", line, flags=re.I).strip()
+    if not c or len(c) > 70:
+        return False
+    if re.match(r"^(?:W|L|TIE)(?:\s|$)|^(?:SEP|OCT|NOV)\b", c, re.I):
+        return False
+    if c.upper().startswith(("REGION ", "CLASS ")):
+        return False
+    if any(x in c.upper() for x in ("SCHEDULE", "RESULT", "SCOREBOARD", "FOOTBALL")):
+        return False
+    heading = re.sub(r"^Mc(?=[A-Z])", "MC", c)
+    return bool(re.sub(r"[^A-Za-z]", "", c)) and heading == heading.upper()
 
 def parse_schedule():
     r=requests.get(SOURCE_URL,timeout=45,headers={"User-Agent":"BoosterBowlScheduleSync/4.0"});r.raise_for_status()
