@@ -14,7 +14,6 @@ TARGET_CLASSES={2,3,4,5,6}
 MONTHS={"Sep":9,"Oct":10,"Nov":11}
 WEEK_WINDOWS={6:(date(2026,9,28),date(2026,10,4)),7:(date(2026,10,5),date(2026,10,11)),8:(date(2026,10,12),date(2026,10,18)),9:(date(2026,10,19),date(2026,10,25)),10:(date(2026,10,26),date(2026,11,1)),11:(date(2026,11,2),date(2026,11,8))}
 
-# Keep source aliases stable for matching while presenting a clear local-school name.
 TEAM_DISPLAY_ALIASES={
     "james river midlothian":"James River (Chesterfield)",
     "james river chesterfield":"James River (Chesterfield)",
@@ -80,6 +79,26 @@ def parse_schedule():
             quarantined.append(("missing reciprocal team listing",listings));continue
         verified.append(sample)
 
+    # A team cannot play two varsity games in one VHSL week. Rather than fail the
+    # entire statewide import, quarantine every still-conflicting matchup. This is
+    # deliberately conservative: ambiguous games never reach Supabase.
+    team_week=defaultdict(list)
+    for game in verified:
+        for team in (game["away_team"],game["home_team"]):
+            team_week[(game["week"],team_key(team))].append(game)
+    conflict_ids=set()
+    for games in team_week.values():
+        if len(games)>1:
+            conflict_ids.update(id(g) for g in games)
+    if conflict_ids:
+        keep=[]
+        for game in verified:
+            if id(game) in conflict_ids:
+                quarantined.append(("team-week conflict",[game]))
+            else:
+                keep.append(game)
+        verified=keep
+
     if quarantined:
         print(f"WARNING: {len(quarantined)} unverified matchups quarantined; they will NOT be synced:",file=sys.stderr)
         for reason,listings in quarantined:
@@ -109,13 +128,13 @@ def validate(rows,quarantined):
     if missing:raise RuntimeError(f"Parser returned zero games for week(s): {missing}")
     suspicious=varsity_conflicts(rows)
     if suspicious:
-        print(f"WARNING: {len(suspicious)} team-week conflicts remain after reciprocal verification:",file=sys.stderr)
+        print(f"WARNING: {len(suspicious)} team-week conflicts remain after quarantine:",file=sys.stderr)
         for w,t,games in suspicious:print(f"  W{w} {t}: {' | '.join(games)}",file=sys.stderr)
         raise RuntimeError(f"Schedule verification required before Supabase write: {len(suspicious)} team-week conflicts remain.")
     jm=[r for r in rows if r["week"]==6 and {team_key(r["away_team"]),team_key(r["home_team"])}=={team_key("John Marshall"),team_key("Woodbridge")}]
     if len(jm)!=1 or team_key(jm[0]["away_team"])!=team_key("John Marshall") or team_key(jm[0]["home_team"])!=team_key("Woodbridge"):raise RuntimeError("Venue validation failed: expected John Marshall at Woodbridge in Week 6.")
     print("Venue check: John Marshall at Woodbridge OK")
-    print(f"Reciprocal verification: {len(quarantined)} questionable matchups quarantined and excluded from sync.")
+    print(f"Verification quarantine: {len(quarantined)} questionable matchups excluded from sync.")
     if len(rows)<150:raise RuntimeError(f"Only {len(rows)} verified games remain; expected statewide slate. Refusing live sync.")
     return counts
 
