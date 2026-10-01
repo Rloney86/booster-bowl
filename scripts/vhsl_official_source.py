@@ -73,6 +73,10 @@ def download_text():
 
 def parse_opponent(raw, canonical):
     text = clean(raw)
+    # PDF extraction can leak the weekly date-range header into an opponent
+    # name, e.g. "Nov 2-7 Hartwood". Strip only a leading VHSL week-range
+    # artifact so the real school name can canonicalize/dedupe normally.
+    text = WEEK_RANGE_RE.sub("", text)
     text = re.sub(r"^(?:BYE\s+)+", "", text, flags=re.I)
     text = re.sub(r"^CONFLICT\s+", "", text, flags=re.I)
     text = re.sub(r"^\*\*\s*", "", text)
