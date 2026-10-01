@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Quarantine stale Week 6-11 schedule rows without deleting games or picks."""
+"""Quarantine stale Week 6-11 VHSL-imported rows without deleting games or picks."""
 import os
 import sys
 import requests
 
-from sync_vhsl_schedule import SEASON, parse_schedule, validate
+from sync_vhsl_schedule import SEASON, SOURCE, parse_schedule, validate
 
 
 def check_response(response, operation):
@@ -33,7 +33,11 @@ def reconcile():
     }
 
     response = requests.get(
-        f"{base}/rest/v1/games?select=id,source_game_id,is_final,sync_status,away_team,home_team,week&season=eq.{SEASON}&week=gte.6&week=lte.11",
+        (
+            f"{base}/rest/v1/games"
+            f"?select=id,source,source_game_id,is_final,sync_status,away_team,home_team,week"
+            f"&season=eq.{SEASON}&week=gte.6&week=lte.11"
+        ),
         headers=headers,
         timeout=45,
     )
@@ -43,7 +47,9 @@ def reconcile():
     stale = [
         game
         for game in existing
-        if not game.get("is_final")
+        if game.get("source") == SOURCE
+        and game.get("source_game_id")
+        and not game.get("is_final")
         and game.get("source_game_id") not in verified_source_ids
         and game.get("sync_status") != "quarantined"
     ]
@@ -57,13 +63,13 @@ def reconcile():
         )
         check_response(response, f"quarantine game id {game['id']}")
         print(
-            f"Quarantined W{game['week']} game {game['id']}: "
+            f"Quarantined W{game['week']} VHSL-imported game {game['id']}: "
             f"{game['away_team']} at {game['home_team']}"
         )
 
     print(
-        f"Schedule reconciliation complete: {len(stale)} stale rows quarantined; "
-        "final games and all pick records preserved."
+        f"Schedule reconciliation complete: {len(stale)} stale VHSL-imported rows quarantined; "
+        "manual/unrelated rows, final games, and all pick records preserved."
     )
 
 
