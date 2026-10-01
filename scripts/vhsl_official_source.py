@@ -30,7 +30,7 @@ CLASS_ONLY_RE = re.compile(r"^\[([1-6])\]$")
 DATE_LINE_RE = re.compile(r"^\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap]\b", re.I)
 DATE_PAIR_RE = re.compile(r"(.+?)(\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap])(?=\s|$)", re.I)
 WEEK_RANGE_RE = re.compile(
-    r"^(?:(?:Sep|Sept|Oct|Nov)\.?\s+\d{1,2}\s*-\s*(?:(?:Sep|Sept|Oct|Nov)\.?\s+)?\d{1,2})\s+",
+    r"(?<![A-Za-z0-9])(?:(?:Sep|Sept|Oct|Nov)\.?\s+\d{1,2}\s*-\s*(?:(?:Sep|Sept|Oct|Nov)\.?\s+)?\d{1,2})(?=\s|$)",
     re.I,
 )
 
@@ -77,10 +77,10 @@ def download_text():
 
 def parse_opponent(raw, canonical):
     text = clean(raw)
-    # PDF extraction can leak the weekly date-range header into an opponent
-    # name, e.g. "Nov 2-7 Hartwood". Strip only a leading VHSL week-range
-    # artifact so the real school name can canonicalize/dedupe normally.
-    text = WEEK_RANGE_RE.sub("", text)
+    # PDF extraction can leak a weekly date-range header into an opponent name.
+    # Remove the standalone VHSL week-range token wherever extraction placed it,
+    # then normalize whitespace before canonicalization/deduplication.
+    text = clean(WEEK_RANGE_RE.sub(" ", text))
     text = re.sub(r"^(?:BYE\s+)+", "", text, flags=re.I)
     text = re.sub(r"^CONFLICT\s+", "", text, flags=re.I)
     text = re.sub(r"^\*\*\s*", "", text)
