@@ -29,6 +29,10 @@ SCHOOL_CLASS_RE = re.compile(r"^(.+?)\s*\[([1-6])\]\s*$")
 CLASS_ONLY_RE = re.compile(r"^\[([1-6])\]$")
 DATE_LINE_RE = re.compile(r"^\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap]\b", re.I)
 DATE_PAIR_RE = re.compile(r"(.+?)(\d{1,2}/\d{1,2}\s+\d{1,2}(?::\d{2})?[ap])(?=\s|$)", re.I)
+WEEK_RANGE_RE = re.compile(
+    r"^(?:(?:Sep|Sept|Oct|Nov)\.?\s+\d{1,2}\s*-\s*(?:(?:Sep|Sept|Oct|Nov)\.?\s+)?\d{1,2})\s+",
+    re.I,
+)
 
 def clean(value):
     return re.sub(r"\s+", " ", value.replace("\xa0", " ").replace("’", "'").replace("–", "-").replace("—", "-")).strip()
