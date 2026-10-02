@@ -39,16 +39,22 @@ def matchup_key(d,a,b):
     t=sorted((team_key(a),team_key(b)));return(str(d),t[0],t[1])
 def stable_source_id(d,a,b): return hashlib.sha256(f"{SEASON}|{'|'.join(matchup_key(d,a,b))}".encode()).hexdigest()[:32]
 
+def review_team_key(team, decision):
+    aliases={team_key(a):team_key(b) for a,b in decision.get("team_aliases",{}).items()}
+    return aliases.get(team_key(team),team_key(team))
+
+def review_matches(game, decision):
+    gd = str(game.get("date") or game.get("kickoff_at") or "")[:10]
+    actual=sorted(review_team_key(game[k],decision) for k in ("away_team","home_team"))
+    expected=sorted(team_key(decision[k]) for k in ("away_team","home_team"))
+    return gd in decision["source_dates"] and actual == expected
+
 def reviewed_decision(game):
     """Exact season/date/pair only; never fuzzy-match another game's correction."""
     if REVIEWS["season"] != SEASON:
         return None
-    gd = str(game.get("date") or game.get("kickoff_at") or "")[:10]
-    key = matchup_key(gd, game["away_team"], game["home_team"])
     for decision in REVIEWS["decisions"]:
-        if gd in decision["source_dates"] and key[1:] == matchup_key(
-            gd, decision["away_team"], decision["home_team"]
-        )[1:]:
+        if review_matches(game,decision):
             return decision
     return None
 
@@ -207,8 +213,7 @@ def plan_sync(rows, existing):
         if decision and decision["action"] == "accept":
             keys={matchup_key(d,row["away_team"],row["home_team"]) for d in decision["source_dates"]}
             source_ids={stable_source_id(*key) for key in keys}
-            candidates=[x for x in existing if x.get("source_game_id") in source_ids or
-                        matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]) in keys]
+            candidates=[x for x in existing if x.get("source_game_id") in source_ids or review_matches(x,decision)]
             if len(candidates)>1:
                 raise RuntimeError(f"Ambiguous reviewed game IDs {[x['id'] for x in candidates]}: "
                                    f"{row['away_team']} at {row['home_team']}. No sync writes made; review existing picks before consolidating.")
@@ -219,7 +224,7 @@ def plan_sync(rows, existing):
             if old:
                 # Saved picks use team text, so retain the existing spelling when
                 # reversing home/away rather than changing a selected team's label.
-                names={team_key(old[k]):old[k] for k in ("away_team","home_team")}
+                names={review_team_key(old[k],decision):old[k] for k in ("away_team","home_team")}
                 row={**row, **{k:names.get(team_key(row[k]),row[k])
                               for k in ("away_team","home_team")}}
             # Never introduce or rewrite an already-started reviewed fixture.

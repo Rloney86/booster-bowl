@@ -57,7 +57,10 @@
       "reason": "Independently reviewed date and venue",
       "sources": [
         "https://gofan.co/event/6773716?schoolId=VA87692"
-      ]
+      ],
+      "team_aliases": {
+        "Lightbridge": "Lightridge"
+      }
     },
     {
       "away_team": "Riverside",
@@ -84,7 +87,8 @@
       "action": "accept",
       "reason": "Independently reviewed date and venue",
       "sources": [
-        "https://www.on3.com/high-school/scores/football/national/game/denbigh-vs-warwick-2026-10-16-2001907/"
+        "https://www.on3.com/high-school/scores/football/national/game/denbigh-vs-warwick-2026-10-16-2001907/",
+        "https://sports.yahoo.com/articles/2026-high-school-football-preview-031138332.html"
       ]
     },
     {
@@ -99,7 +103,10 @@
       "reason": "Independently reviewed date and venue",
       "sources": [
         "https://www.maxpreps.com/va/football/game/caroline-milford-vs-james-monroe-fredericksburg/10-2-2026/?c=43b42982-13d0-4dce-a9a4-3e86a02ede6f"
-      ]
+      ],
+      "team_aliases": {
+        "Caroline County": "Caroline"
+      }
     },
     {
       "away_team": "Richmond School For The Arts",
@@ -127,7 +134,10 @@
       "reason": "Independently reviewed date and venue",
       "sources": [
         "https://www.maxpreps.com/va/football/game/clover-hill-midlothian-vs-richmond-high-school-for-the-arts/11-6-2026/?c=ed4fecbb-1306-48df-b95a-d35644f0ed6a"
-      ]
+      ],
+      "team_aliases": {
+        "Richmond School of the Arts": "Richmond School For The Arts"
+      }
     },
     {
       "away_team": "Fluvanna County",
@@ -171,7 +181,10 @@
       "reason": "Independently reviewed date and venue",
       "sources": [
         "https://gofan.co/event/6857799"
-      ]
+      ],
+      "team_aliases": {
+        "Colonial Height": "Colonial Heights"
+      }
     },
     {
       "away_team": "Highland Springs",
@@ -239,7 +252,8 @@
       "action": "hold",
       "reason": "School identity conflict: South Riding versus Woodbridge",
       "sources": [
-        "https://www.pfhsathletics.com/sport/boys-football/schedule?team=7940761&year=2026-2027"
+        "https://www.pfhsathletics.com/sport/boys-football/schedule?team=7940761&year=2026-2027",
+        "https://www.maxpreps.com/va/football/game/freedom-south-riding-vs-potomac-falls-sterling/10-22-2026/?c=0e9797cc-8cd1-4e84-a8f5-f8e7f9efb0ca"
       ]
     },
     {
@@ -251,7 +265,8 @@
       "action": "hold",
       "reason": "Home/away conflict remains; reported kickoff is 18:00, not the importer default",
       "sources": [
-        "https://www.maxpreps.com/va/football/game/lafayette-williamsburg-vs-warhill-williamsburg/10-5-2026/?c=dad05a8b-2336-4fbb-82db-eb27f630fb84"
+        "https://www.maxpreps.com/va/football/game/lafayette-williamsburg-vs-warhill-williamsburg/10-5-2026/?c=dad05a8b-2336-4fbb-82db-eb27f630fb84",
+        "https://fan.hudl.com/usa/va/williamsburg/organization/17994/lafayette-high-school/team/34601/boys-varsity-football"
       ]
     },
     {

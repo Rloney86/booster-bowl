@@ -49,6 +49,23 @@ class ReviewedScheduleTests(unittest.TestCase):
         self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]['kickoff_at'],'2026-10-29T18:00:00-04:00')
 
+    def test_live_source_spelling_variants_collapse_only_for_reviewed_fixture(self):
+        for decision in sync.REVIEWS['decisions']:
+            for alias,canonical in decision.get('team_aliases',{}).items():
+                original=listing(decision['date'],decision['away_team'],decision['home_team'])
+                variant=dict(original)
+                for k in ('away_team','home_team'):
+                    if variant[k]==canonical:variant[k]=alias
+                rows,held=verify([original,variant])
+                self.assertEqual(len(rows),1)
+                self.assertFalse(held)
+                old=dict(variant,id=123,source=sync.SOURCE,kickoff_at=decision['date']+'T19:00:00-04:00')
+                planned=sync.plan_sync(rows,[old])
+                self.assertEqual(planned[0][1]['id'],123)
+                self.assertIn(alias,(planned[0][0]['away_team'],planned[0][0]['home_team']))
+                variant['date']='2026-11-05'
+                self.assertIsNone(sync.reviewed_decision(variant))
+
     def test_review_reverses_conflicting_venue(self):
         rows,held=verify([listing('2026-10-16','Stone Bridge','Riverside'),
                           listing('2026-10-16','Riverside','Stone Bridge')])
