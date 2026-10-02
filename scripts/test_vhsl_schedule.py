@@ -135,6 +135,16 @@ class ReviewedScheduleTests(unittest.TestCase):
         self.assertEqual(plan[0][1]['id'],42)
         self.assertEqual(plan[0][0]['sync_status'],'scheduled')
 
+    def test_source_id_owner_wins_over_active_date_match(self):
+        row=self.reviewed_row()
+        owner=self.old_row(id=44,d='2026-10-29',sync_status='quarantined')
+        owner['source_game_id']=row['source_game_id']
+        active=self.old_row(id=43,d='2026-10-29')
+        active['source_game_id']=sync.stable_source_id('2026-10-30','Lightridge','Riverside')
+        plan=sync.plan_sync([row],[active,owner])
+        self.assertEqual(plan[0][1]['id'],44)
+        self.assertEqual(sync.choose_duplicate_keeper(row,[active,owner])['id'],44)
+
     def test_venue_repair_preserves_saved_team_spelling(self):
         row=verify([listing('2026-10-09','Powhatan','Richmond School For The Arts')])[0][0]
         old=dict(id=51,source=sync.SOURCE,away_team='Powhatan',home_team='Richmond School for the Arts',
