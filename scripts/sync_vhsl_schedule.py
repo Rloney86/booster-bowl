@@ -217,18 +217,20 @@ def sync_candidates(row, existing, include_quarantined=False):
 
 def choose_duplicate_keeper(row, candidates):
     """Prefer the row already closest to the verified date and venue."""
+    source_owner=[x for x in candidates if x.get("source_game_id") == row["source_game_id"]]
     desired_date=str(row["kickoff_at"])[:10]
     exact=[x for x in candidates if str(x.get("kickoff_at") or "")[:10] == desired_date
            and team_key(x["away_team"]) == team_key(row["away_team"])
            and team_key(x["home_team"]) == team_key(row["home_team"])]
     same_date=[x for x in candidates if str(x.get("kickoff_at") or "")[:10] == desired_date]
-    return min(exact or same_date or candidates,key=lambda x:x["id"])
+    return min(source_owner or exact or same_date or candidates,key=lambda x:x["id"])
 
 def quarantine_zero_pick_duplicates(rows, existing, base, headers):
     """Consolidate imported duplicates only after proving none has saved picks."""
     groups=[];seen=set()
     for row in rows:
-        candidates=[x for x in sync_candidates(row,existing) if x.get("source") == SOURCE]
+        candidates=[x for x in sync_candidates(row,existing,include_quarantined=True)
+                    if x.get("source") == SOURCE]
         ids=tuple(sorted(x["id"] for x in candidates))
         if len(ids)>1 and ids not in seen:
             groups.append((row,candidates));seen.add(ids)
@@ -249,6 +251,7 @@ def quarantine_zero_pick_duplicates(rows, existing, base, headers):
         keeper=choose_duplicate_keeper(row,candidates)
         for game in candidates:
             if game["id"] == keeper["id"]:continue
+            if game.get("sync_status") == "quarantined":continue
             r=requests.patch(f"{base}/rest/v1/games?id=eq.{game['id']}",
                              headers={**headers,"Prefer":"return=minimal"},
                              json={"sync_status":"quarantined"},timeout=45)
@@ -265,8 +268,9 @@ def plan_sync(rows, existing):
     plan=[]
     for row in rows:
         decision=reviewed_decision(row)
+        source_owner=[x for x in existing if x.get("source_game_id") == row["source_game_id"]]
         if decision and decision["action"] == "accept":
-            candidates=sync_candidates(row,existing)
+            candidates=source_owner[:1] or sync_candidates(row,existing)
             if not candidates:
                 inactive=sync_candidates(row,existing,include_quarantined=True)
                 exact=[x for x in inactive if x.get("source_game_id") == row["source_game_id"]]
@@ -289,7 +293,7 @@ def plan_sync(rows, existing):
                 print(f"Preserved already-started reviewed matchup: {row['away_team']} at {row['home_team']}")
                 continue
         else:
-            old=by_source.get(row["source_game_id"]) or by_match.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
+            old=(source_owner[0] if source_owner else None) or by_source.get(row["source_game_id"]) or by_match.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
             if not old:
                 inactive=sync_candidates(row,existing,include_quarantined=True)
                 exact=[x for x in inactive if x.get("source_game_id") == row["source_game_id"]]
