@@ -203,9 +203,9 @@ def check_response(r,op):
     if secret:body=body.replace(secret,"[REDACTED]")
     raise RuntimeError(f"Supabase {op} failed: HTTP {r.status_code}; response: {body}")
 
-def sync_candidates(row, existing):
+def sync_candidates(row, existing, include_quarantined=False):
     """Return active rows that could represent one parsed game."""
-    active=[x for x in existing if x.get("sync_status") != "quarantined"]
+    active=existing if include_quarantined else [x for x in existing if x.get("sync_status") != "quarantined"]
     decision=reviewed_decision(row)
     if decision and decision["action"] == "accept":
         keys={matchup_key(d,row["away_team"],row["home_team"]) for d in decision["source_dates"]}
@@ -267,6 +267,10 @@ def plan_sync(rows, existing):
         decision=reviewed_decision(row)
         if decision and decision["action"] == "accept":
             candidates=sync_candidates(row,existing)
+            if not candidates:
+                inactive=sync_candidates(row,existing,include_quarantined=True)
+                exact=[x for x in inactive if x.get("source_game_id") == row["source_game_id"]]
+                candidates=exact[:1] or ([choose_duplicate_keeper(row,inactive)] if inactive else [])
             if len(candidates)>1:
                 raise RuntimeError(f"Ambiguous reviewed game IDs {[x['id'] for x in candidates]}: "
                                    f"{row['away_team']} at {row['home_team']}. No sync writes made; review existing picks before consolidating.")
@@ -286,6 +290,10 @@ def plan_sync(rows, existing):
                 continue
         else:
             old=by_source.get(row["source_game_id"]) or by_match.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
+            if not old:
+                inactive=sync_candidates(row,existing,include_quarantined=True)
+                exact=[x for x in inactive if x.get("source_game_id") == row["source_game_id"]]
+                old=exact[0] if exact else None
         plan.append((row,old))
     return plan
 
