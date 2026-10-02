@@ -1,0 +1,301 @@
+{
+  "season": 2026,
+  "reviewed_on": "2026-10-02",
+  "decisions": [
+    {
+      "away_team": "Nansemond River",
+      "home_team": "Oscar Smith",
+      "date": "2026-10-23",
+      "source_dates": [
+        "2026-10-23"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://gofan.co/event/6752803"
+      ]
+    },
+    {
+      "away_team": "Dinwiddie",
+      "home_team": "Thomas Dale",
+      "date": "2026-10-16",
+      "source_dates": [
+        "2026-10-16"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/dinwiddie-vs-thomas-dale-chester/10-16-2026/?c=b66018cf-1206-4c8d-9bfc-41c4b19b72ef"
+      ]
+    },
+    {
+      "away_team": "Lightridge",
+      "home_team": "Riverside",
+      "date": "2026-10-29",
+      "source_dates": [
+        "2026-10-29",
+        "2026-10-30"
+      ],
+      "kickoff_time": "18:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.nfhsnetwork.com/schools/riverside-high-school-leesburg-va/football/boys/varsity"
+      ]
+    },
+    {
+      "away_team": "Lightridge",
+      "home_team": "Independence",
+      "date": "2026-11-06",
+      "source_dates": [
+        "2026-11-06"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://gofan.co/event/6773716?schoolId=VA87692"
+      ]
+    },
+    {
+      "away_team": "Riverside",
+      "home_team": "Stone Bridge",
+      "date": "2026-10-16",
+      "source_dates": [
+        "2026-10-16"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.nfhsnetwork.com/schools/stone-bridge-high-school-ashburn-va/football/boys/varsity"
+      ]
+    },
+    {
+      "away_team": "Warwick",
+      "home_team": "Denbigh",
+      "date": "2026-10-16",
+      "source_dates": [
+        "2026-10-16"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.on3.com/high-school/scores/football/national/game/denbigh-vs-warwick-2026-10-16-2001907/"
+      ]
+    },
+    {
+      "away_team": "Caroline",
+      "home_team": "James Monroe",
+      "date": "2026-10-02",
+      "source_dates": [
+        "2026-10-02"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/caroline-milford-vs-james-monroe-fredericksburg/10-2-2026/?c=43b42982-13d0-4dce-a9a4-3e86a02ede6f"
+      ]
+    },
+    {
+      "away_team": "Richmond School For The Arts",
+      "home_team": "Powhatan",
+      "date": "2026-10-09",
+      "source_dates": [
+        "2026-10-09"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://x.com/powhatanhsath/status/2095233920484724785"
+      ]
+    },
+    {
+      "away_team": "Richmond School For The Arts",
+      "home_team": "Clover Hill",
+      "date": "2026-11-06",
+      "source_dates": [
+        "2026-11-06"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/clover-hill-midlothian-vs-richmond-high-school-for-the-arts/11-6-2026/?c=ed4fecbb-1306-48df-b95a-d35644f0ed6a"
+      ]
+    },
+    {
+      "away_team": "Fluvanna County",
+      "home_team": "Charlottesville",
+      "date": "2026-10-22",
+      "source_dates": [
+        "2026-10-22",
+        "2026-10-23"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://gofan.co/event/6886338?schoolId=VA12263"
+      ]
+    },
+    {
+      "away_team": "Mecklenburg County",
+      "home_team": "King William",
+      "date": "2026-10-15",
+      "source_dates": [
+        "2026-10-15",
+        "2026-10-16"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://gofan.co/event/6762526?schoolId=VA7812"
+      ]
+    },
+    {
+      "away_team": "Meadowbrook",
+      "home_team": "Colonial Heights",
+      "date": "2026-10-30",
+      "source_dates": [
+        "2026-10-30"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://gofan.co/event/6857799"
+      ]
+    },
+    {
+      "away_team": "Highland Springs",
+      "home_team": "Petersburg",
+      "date": "2026-10-13",
+      "source_dates": [
+        "2026-10-13"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://gofan.co/event/6907600"
+      ]
+    },
+    {
+      "away_team": "Petersburg",
+      "home_team": "Meadowbrook",
+      "date": "2026-10-16",
+      "source_dates": [
+        "2026-10-16"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/meadowbrook-richmond-vs-petersburg/10-16-2026/?c=b621e6c5-820c-4412-b5e9-1903563bc1ef"
+      ]
+    },
+    {
+      "away_team": "Jamestown",
+      "home_team": "Lafayette",
+      "date": "2026-10-09",
+      "source_dates": [
+        "2026-10-09"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/jamestown-williamsburg-vs-lafayette-williamsburg/10-9-2026/?c=4a830da1-cc8d-451d-a17b-8c3610c5180a"
+      ]
+    },
+    {
+      "away_team": "Bruton",
+      "home_team": "Warhill",
+      "date": "2026-10-08",
+      "source_dates": [
+        "2026-10-08"
+      ],
+      "kickoff_time": "19:00",
+      "action": "accept",
+      "reason": "Independently reviewed date and venue",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/bruton-williamsburg-vs-warhill-williamsburg/10-8-2026/?c=764fa7ab-3962-4d44-8349-b2d72c9906fd"
+      ]
+    },
+    {
+      "away_team": "Freedom-South Riding",
+      "home_team": "Potomac Falls",
+      "source_dates": [
+        "2026-10-22",
+        "2026-10-23"
+      ],
+      "action": "hold",
+      "reason": "School identity conflict: South Riding versus Woodbridge",
+      "sources": [
+        "https://www.pfhsathletics.com/sport/boys-football/schedule?team=7940761&year=2026-2027"
+      ]
+    },
+    {
+      "away_team": "Lafayette",
+      "home_team": "Warhill",
+      "source_dates": [
+        "2026-10-05"
+      ],
+      "action": "hold",
+      "reason": "Home/away conflict remains; reported kickoff is 18:00, not the importer default",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/lafayette-williamsburg-vs-warhill-williamsburg/10-5-2026/?c=dad05a8b-2336-4fbb-82db-eb27f630fb84"
+      ]
+    },
+    {
+      "away_team": "Dinwiddie",
+      "home_team": "Hopewell",
+      "source_dates": [
+        "2026-10-01",
+        "2026-10-02"
+      ],
+      "action": "hold",
+      "reason": "Already played October 1; do not restore as a scheduled pick-board game",
+      "sources": [
+        "https://www.maxpreps.com/news/IF0iN6uoQkiSOMcQi-O2GA/football-recap-tough-loss-for-dinwiddie--how-to-watch.htm"
+      ]
+    },
+    {
+      "away_team": "Park View",
+      "home_team": "Thomas Jefferson-Alexandria",
+      "source_dates": [
+        "2026-10-16"
+      ],
+      "action": "hold",
+      "reason": "Stale October listing; matchup played September 3",
+      "sources": [
+        "https://www.maxpreps.com/va/football/game/park-view-sterling-vs-thomas-jefferson-science-and-technology-alexandria/9-3-2026/?c=ed86da93-3054-473f-a17d-35712bceedae"
+      ]
+    }
+  ],
+  "multi_game_weeks": [
+    {
+      "team": "Petersburg",
+      "week": 8,
+      "games": [
+        [
+          "2026-10-13",
+          "Highland Springs",
+          "Petersburg"
+        ],
+        [
+          "2026-10-16",
+          "Petersburg",
+          "Meadowbrook"
+        ]
+      ]
+    }
+  ]
+}

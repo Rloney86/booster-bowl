@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Sync remaining 2026 VHSL Class 2-6 varsity football schedules into Supabase."""
-import hashlib, os, re, sys
+import hashlib, json, os, re, sys
+from pathlib import Path
 from collections import Counter, defaultdict
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -13,6 +14,7 @@ SOURCE_URL="https://www.on3.com/sites/virginia-preps/news/2026-vhsl-football-tea
 TARGET_CLASSES={2,3,4,5,6}
 MONTHS={"Sep":9,"Oct":10,"Nov":11}
 WEEK_WINDOWS={6:(date(2026,9,28),date(2026,10,4)),7:(date(2026,10,5),date(2026,10,11)),8:(date(2026,10,12),date(2026,10,18)),9:(date(2026,10,19),date(2026,10,25)),10:(date(2026,10,26),date(2026,11,1)),11:(date(2026,11,2),date(2026,11,8))}
+REVIEWS=json.loads(Path(__file__).with_name("vhsl_reviewed_schedule.json").read_text())
 
 TEAM_DISPLAY_ALIASES={
     "james river midlothian":"James River (Chesterfield)",
@@ -36,6 +38,32 @@ def team_key(v): return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",clean(v).lowe
 def matchup_key(d,a,b):
     t=sorted((team_key(a),team_key(b)));return(str(d),t[0],t[1])
 def stable_source_id(d,a,b): return hashlib.sha256(f"{SEASON}|{'|'.join(matchup_key(d,a,b))}".encode()).hexdigest()[:32]
+
+def reviewed_decision(game):
+    """Exact season/date/pair only; never fuzzy-match another game's correction."""
+    if REVIEWS["season"] != SEASON:
+        return None
+    gd = str(game.get("date") or game.get("kickoff_at") or "")[:10]
+    key = matchup_key(gd, game["away_team"], game["home_team"])
+    for decision in REVIEWS["decisions"]:
+        if gd in decision["source_dates"] and key[1:] == matchup_key(
+            gd, decision["away_team"], decision["home_team"]
+        )[1:]:
+            return decision
+    return None
+
+def approved_multi_game_week(week, team, games):
+    if REVIEWS["season"] != SEASON:
+        return False
+    actual = [matchup_key(str(g.get("date") or g.get("kickoff_at"))[:10],
+                          g["away_team"], g["home_team"]) for g in games]
+    for exception in REVIEWS["multi_game_weeks"]:
+        expected = {matchup_key(*g) for g in exception["games"]}
+        if (week == exception["week"] and team_key(team) == team_key(exception["team"])
+                and len(actual) == len(set(actual)) and set(actual) == expected):
+            return True
+    return False
+
 def looks_like_team_heading(line):
     c = re.sub(r"\s*\(\d+\s+games?\)\s*$", "", line, flags=re.I).strip()
     if not c or len(c) > 70:
@@ -70,9 +98,27 @@ def parse_schedule():
         gd=date(SEASON,MONTHS[month.title()],int(day));week=week_for_date(gd)
         if week:raw.append({"date":gd.isoformat(),"week":week,"away_team":current_team if away else opponent,"home_team":opponent if away else current_team,"listed_by":current_team})
 
+    return verify_schedule(raw, teams)
+
+def verify_schedule(raw, teams):
+    reviewed=[];quarantined=[];held=defaultdict(list)
+    for original in raw:
+        game=dict(original)
+        decision=reviewed_decision(game)
+        if decision:
+            if decision["action"] == "hold":
+                held[(decision["reason"],matchup_key(game["date"],game["away_team"],game["home_team"]))].append(game)
+                continue
+            # Only normalize a listing that actually exists in today's source.
+            # No reviewed row is injected if the source removes/cancels it.
+            game.update(date=decision["date"], week=week_for_date(date.fromisoformat(decision["date"])),
+                        away_team=decision["away_team"], home_team=decision["home_team"],
+                        kickoff_time=decision["kickoff_time"])
+        reviewed.append(game)
+    quarantined.extend(("review hold: " + reason,listings) for (reason,_),listings in held.items())
     grouped=defaultdict(list)
-    for game in raw:grouped[matchup_key(game["date"],game["away_team"],game["home_team"])].append(game)
-    verified=[];quarantined=[]
+    for game in reviewed:grouped[matchup_key(game["date"],game["away_team"],game["home_team"])].append(game)
+    verified=[]
     for key,listings in grouped.items():
         sample=listings[0]
         akey=team_key(sample["away_team"]);hkey=team_key(sample["home_team"])
@@ -81,20 +127,21 @@ def parse_schedule():
         orientations={(team_key(x["away_team"]),team_key(x["home_team"])) for x in listings}
         if len(orientations)>1:
             quarantined.append(("home/away disagreement",listings));continue
-        if known_pair and not {akey,hkey}.issubset(listers):
+        decision=reviewed_decision(sample)
+        independently_reviewed=decision and decision["action"] == "accept"
+        if known_pair and not {akey,hkey}.issubset(listers) and not independently_reviewed:
             quarantined.append(("missing reciprocal team listing",listings));continue
         verified.append(sample)
 
-    # A team cannot play two varsity games in one VHSL week. Rather than fail the
-    # entire statewide import, quarantine every still-conflicting matchup. This is
-    # deliberately conservative: ambiguous games never reach Supabase.
+    # Rescheduled games may share a week, but only an exact reviewed set is allowed.
+    # An extra game or a changed date restores the conservative quarantine.
     team_week=defaultdict(list)
     for game in verified:
         for team in (game["away_team"],game["home_team"]):
             team_week[(game["week"],team_key(team))].append(game)
     conflict_ids=set()
-    for games in team_week.values():
-        if len(games)>1:
+    for (week,team),games in team_week.items():
+        if len(games)>1 and not approved_multi_game_week(week,team,games):
             conflict_ids.update(id(g) for g in games)
     if conflict_ids:
         keep=[]
@@ -113,7 +160,7 @@ def parse_schedule():
 
     now=datetime.now(tz=ZoneInfo("UTC")).isoformat();rows=[]
     for game in verified:
-        am=teams.get(team_key(game["away_team"]));hm=teams.get(team_key(game["home_team"]));kick=datetime.fromisoformat(game["date"]+"T19:00:00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
+        am=teams.get(team_key(game["away_team"]));hm=teams.get(team_key(game["home_team"]));kick=datetime.fromisoformat(game["date"]+"T"+game.get("kickoff_time","19:00")+":00").replace(tzinfo=ZoneInfo("America/New_York")).isoformat()
         rows.append({"season":SEASON,"week":game["week"],"away_team":game["away_team"],"home_team":game["home_team"],"kickoff_at":kick,"sport":"football","away_class":f"Class {am[0]}" if am else None,"away_region":f"Region {am[1]}" if am and am[1] else None,"home_class":f"Class {hm[0]}" if hm else None,"home_region":f"Region {hm[1]}" if hm and hm[1] else None,"source":SOURCE,"source_game_id":stable_source_id(game["date"],game["away_team"],game["home_team"]),"source_url":SOURCE_URL,"synced_at":now,"sync_status":"scheduled"})
     return rows,quarantined
 
@@ -123,7 +170,7 @@ def varsity_conflicts(rows):
         for team in (r["away_team"],r["home_team"]):tw[(r["week"],team_key(team))].append(r)
     out=[]
     for (week,key),games in tw.items():
-        if len(games)>1:
+        if len(games)>1 and not approved_multi_game_week(week,key,games):
             team=next(t for t in (games[0]["away_team"],games[0]["home_team"]) if team_key(t)==key)
             out.append((week,team,sorted(f"{str(g['kickoff_at'])[:10]} {g['away_team']} at {g['home_team']}" for g in games)))
     return out
@@ -150,12 +197,50 @@ def check_response(r,op):
     if secret:body=body.replace(secret,"[REDACTED]")
     raise RuntimeError(f"Supabase {op} failed: HTTP {r.status_code}; response: {body}")
 
+def plan_sync(rows, existing):
+    """Resolve every identity before writes; date repairs must not orphan picks."""
+    by_source={x.get("source_game_id"):x for x in existing if x.get("source_game_id")}
+    by_match={matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]):x for x in existing}
+    plan=[]
+    for row in rows:
+        decision=reviewed_decision(row)
+        if decision and decision["action"] == "accept":
+            keys={matchup_key(d,row["away_team"],row["home_team"]) for d in decision["source_dates"]}
+            source_ids={stable_source_id(*key) for key in keys}
+            candidates=[x for x in existing if x.get("source_game_id") in source_ids or
+                        matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]) in keys]
+            if len(candidates)>1:
+                raise RuntimeError(f"Ambiguous reviewed game IDs {[x['id'] for x in candidates]}: "
+                                   f"{row['away_team']} at {row['home_team']}. No sync writes made; review existing picks before consolidating.")
+            old=candidates[0] if candidates else None
+            if old and old.get("source") != SOURCE:
+                print(f"Preserved manual/unrelated reviewed matchup id {old['id']}")
+                continue
+            if old:
+                # Saved picks use team text, so retain the existing spelling when
+                # reversing home/away rather than changing a selected team's label.
+                names={team_key(old[k]):old[k] for k in ("away_team","home_team")}
+                row={**row, **{k:names.get(team_key(row[k]),row[k])
+                              for k in ("away_team","home_team")}}
+            # Never introduce or rewrite an already-started reviewed fixture.
+            if datetime.fromisoformat(row["kickoff_at"]) <= datetime.now(tz=ZoneInfo("UTC")):
+                print(f"Preserved already-started reviewed matchup: {row['away_team']} at {row['home_team']}")
+                continue
+        else:
+            old=by_source.get(row["source_game_id"]) or by_match.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
+        plan.append((row,old))
+    return plan
+
 def sync(rows):
     base=os.environ["SUPABASE_URL"].rstrip("/");key=os.environ["SUPABASE_SERVICE_ROLE_KEY"];h={"apikey":key,"Authorization":f"Bearer {key}","Content-Type":"application/json"}
-    r=requests.get(f"{base}/rest/v1/games?select=id,season,week,away_team,home_team,source_game_id,is_final,kickoff_at&season=eq.{SEASON}&week=gte.6&week=lte.11",headers=h,timeout=45);check_response(r,"initial games read");existing=r.json()
-    by_source={x.get("source_game_id"):x for x in existing if x.get("source_game_id")};by_match={matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]):x for x in existing};created=updated=final=0
-    for row in rows:
-        old=by_source.get(row["source_game_id"]) or by_match.get(matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"]))
+    existing=[];offset=0
+    while True:
+        r=requests.get(f"{base}/rest/v1/games?select=id,source,season,week,away_team,home_team,source_game_id,is_final,kickoff_at&season=eq.{SEASON}&week=gte.6&week=lte.11&order=id&limit=500&offset={offset}",headers=h,timeout=45)
+        check_response(r,"initial games read");page=r.json();existing.extend(page)
+        if not page:break
+        offset+=len(page)
+    plan=plan_sync(rows,existing);created=updated=final=0
+    for row,old in plan:
         if old and old.get("is_final"):final+=1;continue
         if old:r=requests.patch(f"{base}/rest/v1/games?id=eq.{old['id']}",headers={**h,"Prefer":"return=minimal"},json=row,timeout=45);op=f"update game id {old['id']}";updated+=1
         else:r=requests.post(f"{base}/rest/v1/games",headers={**h,"Prefer":"return=minimal"},json=row,timeout=45);op=f"create {row['away_team']} at {row['home_team']}";created+=1
