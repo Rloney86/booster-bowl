@@ -29,4 +29,4 @@ as $$
 $$;
 
 revoke all on function public.get_pick_board_games(integer, integer) from public;
-grant execute on function public.get_pick_board_games(integer, integer) to authenticated;
+-- Game schedules are public information. This function exposes only the safe\n-- pick-board columns above; picks and player records remain protected.\ngrant execute on function public.get_pick_board_games(integer, integer) to anon, authenticated;
