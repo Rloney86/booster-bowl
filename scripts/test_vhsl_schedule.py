@@ -136,16 +136,33 @@ class ReviewedScheduleTests(unittest.TestCase):
         self.assertEqual(plan[0][0]['home_team'],'Powhatan')
         self.assertEqual(plan[0][1]['id'],51)
 
-    def test_ambiguous_ids_fail_before_any_write(self):
+    def test_zero_pick_duplicates_quarantine_extra_and_reuse_verified_row(self):
         response=Mock(ok=True)
         response.json.return_value=[self.old_row(),self.old_row(id=43,d='2026-10-29')]
         empty=Mock(ok=True);empty.json.return_value=[]
+        no_picks=Mock(ok=True);no_picks.json.return_value=[]
+        write=Mock(return_value=Mock(ok=True))
         with patch.dict(sync.os.environ,SUPABASE_URL='https://example.invalid',SUPABASE_SERVICE_ROLE_KEY='test'), \
-             patch.object(sync.requests,'get',side_effect=[response,empty]), \
+             patch.object(sync.requests,'get',side_effect=[response,empty,no_picks]), \
+             patch.object(sync.requests,'patch',write),patch.object(sync.requests,'post') as create:
+            self.assertEqual(sync.sync([self.reviewed_row()]),(0,1,0))
+        create.assert_not_called()
+        self.assertEqual(write.call_count,2)
+        self.assertTrue(write.call_args_list[0].args[0].endswith('games?id=eq.42'))
+        self.assertEqual(write.call_args_list[0].kwargs['json'],{'sync_status':'quarantined'})
+        self.assertTrue(write.call_args_list[1].args[0].endswith('games?id=eq.43'))
+
+    def test_duplicate_with_saved_pick_fails_before_any_write(self):
+        response=Mock(ok=True)
+        response.json.return_value=[self.old_row(),self.old_row(id=43,d='2026-10-29')]
+        empty=Mock(ok=True);empty.json.return_value=[]
+        picks=Mock(ok=True);picks.json.return_value=[{'game_id':42}]
+        with patch.dict(sync.os.environ,SUPABASE_URL='https://example.invalid',SUPABASE_SERVICE_ROLE_KEY='test'), \
+             patch.object(sync.requests,'get',side_effect=[response,empty,picks]), \
              patch.object(sync.requests,'patch') as write,patch.object(sync.requests,'post') as create:
-            with self.assertRaisesRegex(RuntimeError,'Ambiguous reviewed game IDs'):
+            with self.assertRaisesRegex(RuntimeError,'have saved picks'):
                 sync.sync([self.reviewed_row()])
-            write.assert_not_called();create.assert_not_called()
+        write.assert_not_called();create.assert_not_called()
 
     def test_final_game_untouched_and_date_repair_updates_same_id(self):
         for final in (True,False):
