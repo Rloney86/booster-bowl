@@ -203,17 +203,70 @@ def check_response(r,op):
     if secret:body=body.replace(secret,"[REDACTED]")
     raise RuntimeError(f"Supabase {op} failed: HTTP {r.status_code}; response: {body}")
 
+def sync_candidates(row, existing):
+    """Return active rows that could represent one parsed game."""
+    active=[x for x in existing if x.get("sync_status") != "quarantined"]
+    decision=reviewed_decision(row)
+    if decision and decision["action"] == "accept":
+        keys={matchup_key(d,row["away_team"],row["home_team"]) for d in decision["source_dates"]}
+        source_ids={stable_source_id(*key) for key in keys}
+        return [x for x in active if x.get("source_game_id") in source_ids or review_matches(x,decision)]
+    exact=matchup_key(str(row["kickoff_at"])[:10],row["away_team"],row["home_team"])
+    return [x for x in active if x.get("source_game_id") == row["source_game_id"]
+            or matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]) == exact]
+
+def choose_duplicate_keeper(row, candidates):
+    """Prefer the row already closest to the verified date and venue."""
+    desired_date=str(row["kickoff_at"])[:10]
+    exact=[x for x in candidates if str(x.get("kickoff_at") or "")[:10] == desired_date
+           and team_key(x["away_team"]) == team_key(row["away_team"])
+           and team_key(x["home_team"]) == team_key(row["home_team"])]
+    same_date=[x for x in candidates if str(x.get("kickoff_at") or "")[:10] == desired_date]
+    return min(exact or same_date or candidates,key=lambda x:x["id"])
+
+def quarantine_zero_pick_duplicates(rows, existing, base, headers):
+    """Consolidate imported duplicates only after proving none has saved picks."""
+    groups=[];seen=set()
+    for row in rows:
+        candidates=[x for x in sync_candidates(row,existing) if x.get("source") == SOURCE]
+        ids=tuple(sorted(x["id"] for x in candidates))
+        if len(ids)>1 and ids not in seen:
+            groups.append((row,candidates));seen.add(ids)
+    if not groups:return 0
+    candidate_ids=sorted({x["id"] for _,group in groups for x in group})
+    ids=",".join(str(x) for x in candidate_ids)
+    r=requests.get(f"{base}/rest/v1/picks?select=game_id&game_id=in.({ids})&limit=10000",
+                   headers=headers,timeout=45)
+    check_response(r,"duplicate pick check")
+    picked={x["game_id"] for x in r.json()}
+    blocked=sorted(picked.intersection(candidate_ids))
+    if blocked:
+        raise RuntimeError(f"Duplicate game IDs {blocked} have saved picks. No duplicate rows were quarantined.")
+    if any(x.get("is_final") for _,group in groups for x in group):
+        raise RuntimeError("A duplicate reviewed game is final. No duplicate rows were quarantined.")
+    quarantined=0
+    for row,candidates in groups:
+        keeper=choose_duplicate_keeper(row,candidates)
+        for game in candidates:
+            if game["id"] == keeper["id"]:continue
+            r=requests.patch(f"{base}/rest/v1/games?id=eq.{game['id']}",
+                             headers={**headers,"Prefer":"return=minimal"},
+                             json={"sync_status":"quarantined"},timeout=45)
+            check_response(r,f"quarantine duplicate game id {game['id']}")
+            game["sync_status"]="quarantined";quarantined+=1
+            print(f"Quarantined zero-pick duplicate game id {game['id']}; retained id {keeper['id']}")
+    return quarantined
+
 def plan_sync(rows, existing):
     """Resolve every identity before writes; date repairs must not orphan picks."""
-    by_source={x.get("source_game_id"):x for x in existing if x.get("source_game_id")}
-    by_match={matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]):x for x in existing}
+    active=[x for x in existing if x.get("sync_status") != "quarantined"]
+    by_source={x.get("source_game_id"):x for x in active if x.get("source_game_id")}
+    by_match={matchup_key(str(x.get("kickoff_at") or "")[:10],x["away_team"],x["home_team"]):x for x in active}
     plan=[]
     for row in rows:
         decision=reviewed_decision(row)
         if decision and decision["action"] == "accept":
-            keys={matchup_key(d,row["away_team"],row["home_team"]) for d in decision["source_dates"]}
-            source_ids={stable_source_id(*key) for key in keys}
-            candidates=[x for x in existing if x.get("source_game_id") in source_ids or review_matches(x,decision)]
+            candidates=sync_candidates(row,existing)
             if len(candidates)>1:
                 raise RuntimeError(f"Ambiguous reviewed game IDs {[x['id'] for x in candidates]}: "
                                    f"{row['away_team']} at {row['home_team']}. No sync writes made; review existing picks before consolidating.")
@@ -240,10 +293,11 @@ def sync(rows):
     base=os.environ["SUPABASE_URL"].rstrip("/");key=os.environ["SUPABASE_SERVICE_ROLE_KEY"];h={"apikey":key,"Authorization":f"Bearer {key}","Content-Type":"application/json"}
     existing=[];offset=0
     while True:
-        r=requests.get(f"{base}/rest/v1/games?select=id,source,season,week,away_team,home_team,source_game_id,is_final,kickoff_at&season=eq.{SEASON}&week=gte.6&week=lte.11&order=id&limit=500&offset={offset}",headers=h,timeout=45)
+        r=requests.get(f"{base}/rest/v1/games?select=id,source,season,week,away_team,home_team,source_game_id,is_final,kickoff_at,sync_status&season=eq.{SEASON}&week=gte.6&week=lte.11&order=id&limit=500&offset={offset}",headers=h,timeout=45)
         check_response(r,"initial games read");page=r.json();existing.extend(page)
         if not page:break
         offset+=len(page)
+    quarantine_zero_pick_duplicates(rows,existing,base,h)
     plan=plan_sync(rows,existing);created=updated=final=0
     for row,old in plan:
         if old and old.get("is_final"):final+=1;continue
