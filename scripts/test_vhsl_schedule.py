@@ -127,6 +127,14 @@ class ReviewedScheduleTests(unittest.TestCase):
         plan=sync.plan_sync([self.reviewed_row()],[self.old_row()])
         self.assertEqual(plan[0][1]['id'],42)
 
+    def test_exact_quarantined_row_is_reactivated_instead_of_recreated(self):
+        row=self.reviewed_row()
+        old=self.old_row(d='2026-10-29',sync_status='quarantined')
+        old['source_game_id']=row['source_game_id']
+        plan=sync.plan_sync([row],[old])
+        self.assertEqual(plan[0][1]['id'],42)
+        self.assertEqual(plan[0][0]['sync_status'],'scheduled')
+
     def test_venue_repair_preserves_saved_team_spelling(self):
         row=verify([listing('2026-10-09','Powhatan','Richmond School For The Arts')])[0][0]
         old=dict(id=51,source=sync.SOURCE,away_team='Powhatan',home_team='Richmond School for the Arts',
