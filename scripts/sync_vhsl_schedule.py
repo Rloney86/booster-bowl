@@ -62,7 +62,7 @@ def parse_schedule():
         if current_class not in TARGET_CLASSES:continue
         if looks_like_team_heading(line):current_team=display_team(line);teams[team_key(current_team)]=(current_class,current_region);continue
         if not current_team:continue
-        m=re.match(r"^(Sep|Oct|Nov)\s+(\d{1,2}),\s+(.+)$",line,re.I)
+        m=re.match(r"^(Sep|Oct|Nov)\.?\s+(\d{1,2}),\s+(.+)$",line,re.I)
         if not m:continue
         month,day,opp=m.groups();opp=clean(opp)
         if re.search(r"\b(canceled|cancelled|ppd\.?|susp\.?|postponed)\b",opp,re.I):continue
