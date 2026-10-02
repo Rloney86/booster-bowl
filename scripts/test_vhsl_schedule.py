@@ -140,6 +140,7 @@ class ReviewedScheduleTests(unittest.TestCase):
         owner=self.old_row(id=44,d='2026-10-29',sync_status='quarantined')
         owner['source_game_id']=row['source_game_id']
         active=self.old_row(id=43,d='2026-10-29')
+        active['source_game_id']=sync.stable_source_id('2026-10-30','Lightridge','Riverside')
         plan=sync.plan_sync([row],[active,owner])
         self.assertEqual(plan[0][1]['id'],44)
         self.assertEqual(sync.choose_duplicate_keeper(row,[active,owner])['id'],44)
