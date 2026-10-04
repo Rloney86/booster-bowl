@@ -9,6 +9,7 @@ export default function MyApp({ Component, pageProps }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [authStep, setAuthStep] = useState("email");
   const [busy, setBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [playerName, setPlayerName] = useState("");
@@ -37,6 +38,12 @@ export default function MyApp({ Component, pageProps }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setTimeout(() => setCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldown]);
+
   function saveProfile() {
     const profile = { playerName: playerName.trim(), email: (user?.email || email).trim() };
     try { localStorage.setItem(PLAYER_KEY, JSON.stringify(profile)); } catch {}
@@ -44,6 +51,10 @@ export default function MyApp({ Component, pageProps }) {
   }
 
   async function sendSignInLink() {
+    if (cooldown > 0) {
+      setMessage(`Please wait ${cooldown} seconds before requesting another sign-in email.`);
+      return;
+    }
     if (!playerName.trim() || !email.trim()) {
       setMessage("Enter your name and email first.");
       return;
@@ -60,9 +71,16 @@ export default function MyApp({ Component, pageProps }) {
     });
     setBusy(false);
     if (error) {
-      setMessage("Could not send the sign-in link: " + error.message);
+      const rateLimited = error.code === "over_email_send_rate_limit" || /rate limit/i.test(error.message || "");
+      if (rateLimited) {
+        setCooldown(60);
+        setMessage("Too many sign-in emails were requested. Use the newest email already sent, or wait about an hour and try again.");
+      } else {
+        setMessage("Could not send the sign-in link: " + error.message);
+      }
       return;
     }
+    setCooldown(60);
     setAuthStep("link-sent");
     setMessage("Open the newest Booster Bowl email and tap Sign in.");
   }
@@ -203,8 +221,8 @@ export default function MyApp({ Component, pageProps }) {
                   )}
 
                   {!user && authStep === "email" ? (
-                    <button className="button" onClick={sendSignInLink} disabled={busy}>
-                      {busy ? "Sending..." : "Email Me a Sign-In Link"}
+                    <button className="button" onClick={sendSignInLink} disabled={busy || cooldown > 0}>
+                      {busy ? "Sending..." : cooldown > 0 ? `Try Again in ${cooldown}s` : "Email Me a Sign-In Link"}
                     </button>
                   ) : null}
 
@@ -214,8 +232,8 @@ export default function MyApp({ Component, pageProps }) {
                         Check your email and tap <b>Sign in</b>.
                       </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button className="button" onClick={sendSignInLink} disabled={busy}>
-                          {busy ? "Sending..." : "Resend Link"}
+                        <button className="button" onClick={sendSignInLink} disabled={busy || cooldown > 0}>
+                          {busy ? "Sending..." : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend Link"}
                         </button>
                         <button className="button secondary" onClick={changeEmail} disabled={busy}>
                           Change Email
