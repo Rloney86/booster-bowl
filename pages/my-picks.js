@@ -2,9 +2,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { CURRENT_WEEK, SEASON } from "../lib/config";
+import { resolveActiveWeek } from "../lib/activeWeek";
 
 export default function MyPicks() {
   const [loading, setLoading] = useState(true);
+  const [activeWeek, setActiveWeek] = useState(CURRENT_WEEK);
   const [message, setMessage] = useState("");
   const [rows, setRows] = useState([]);
   const [user, setUser] = useState(null);
@@ -14,6 +16,8 @@ export default function MyPicks() {
   async function loadPicks() {
     setLoading(true);
     setMessage("");
+    const week = await resolveActiveWeek();
+    setActiveWeek(week);
 
     const { data: authData } = await supabase.auth.getUser();
     const signedInUser = authData?.user;
@@ -40,7 +44,7 @@ export default function MyPicks() {
       .from("games")
       .select("id,away_team,home_team,winner")
       .eq("season", Number(SEASON))
-      .eq("week", CURRENT_WEEK);
+      .eq("week", week);
 
     if (gamesError) {
       setMessage("Could not load this week's games: " + gamesError.message);
@@ -79,7 +83,7 @@ export default function MyPicks() {
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
       <section className="card">
         <h1 style={{ marginTop: 0 }}>🏈 My Picks</h1>
-        <p style={{ opacity: 0.85 }}>2026 • Week {CURRENT_WEEK}</p>
+        <p style={{ opacity: 0.85 }}>2026 • Week {activeWeek}</p>
         {user ? <p style={{ fontWeight: 700 }}>✅ Signed in as {user.email}</p> : null}
         {completed.length ? <p style={{ fontSize: 20 }}>Your record: <b>{correct}-{completed.length - correct}</b> ({correct}/{completed.length} correct)</p> : <p>Results will grade automatically as game winners are entered.</p>}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -92,7 +96,7 @@ export default function MyPicks() {
 
       <div style={{ height: 18 }} />
       {loading ? <section className="card">Loading your picks...</section> : null}
-      {!loading && !message && rows.length === 0 ? <section className="card">No saved picks found for Week {CURRENT_WEEK}.</section> : null}
+      {!loading && !message && rows.length === 0 ? <section className="card">No saved picks found for Week {activeWeek}.</section> : null}
       {rows.map((row, index) => {
         const winner = row.game.winner;
         const isCorrect = winner ? row.selected_team === winner : null;
