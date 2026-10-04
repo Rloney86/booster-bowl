@@ -123,36 +123,60 @@ export default function MyApp({ Component, pageProps }) {
             />
           </Link>
 
-          <div style={{ marginLeft: "auto", position: "relative" }}>
+          <div style={{ marginLeft: "auto", position: "relative", flexShrink: 0 }}>
             <button
               type="button"
               aria-label={user ? "Open account menu" : "Open player login"}
               title={user ? `Signed in as ${user.email}` : "Player login"}
               onClick={() => { setAccountOpen((open) => !open); setMessage(""); }}
               style={{
-                width: 42,
+                minWidth: 82,
                 height: 42,
-                borderRadius: "50%",
+                padding: "0 12px",
+                borderRadius: 999,
                 border: user ? "2px solid #00f5c4" : "1px solid #607080",
                 background: user ? "#10382f" : "#17202a",
                 color: "#fff",
                 cursor: "pointer",
-                fontSize: 21,
-                display: "grid",
-                placeItems: "center",
+                fontSize: 15,
+                fontWeight: 800,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                whiteSpace: "nowrap",
               }}
             >
-              {user ? "✅" : "👤"}
+              {user ? "✅ Account" : "👤 Login"}
             </button>
 
             {accountOpen ? (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close login window"
+                  onClick={() => setAccountOpen(false)}
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    border: 0,
+                    background: "rgba(0, 0, 0, 0.55)",
+                    zIndex: 99,
+                  }}
+                />
               <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={user ? "Player account" : "Player login"}
                 className="card"
                 style={{
-                  position: "absolute",
-                  top: 52,
-                  right: 0,
-                  width: "min(340px, calc(100vw - 40px))",
+                  position: "fixed",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  width: "min(380px, calc(100vw - 32px))",
+                  maxHeight: "calc(100vh - 32px)",
+                  overflowY: "auto",
                   color: "#0b1220",
                   zIndex: 100,
                 }}
@@ -213,10 +237,11 @@ export default function MyApp({ Component, pageProps }) {
                   {message ? <div style={{ padding: 10, border: "1px solid #dbe3ef", borderRadius: 12 }}>{message}</div> : null}
                 </div>
               </div>
+              </>
             ) : null}
           </div>
 
-          <nav style={{ display: "flex", gap: 18 }}>
+          <nav style={{ display: "flex", gap: 18, flex: "1 1 auto", minWidth: 0, overflowX: "auto", whiteSpace: "nowrap", paddingBottom: 2 }}>
             <Link href="/" style={navLink}>Home</Link>
             <Link href="/picks" style={navLink}>Make Picks</Link>
             <Link href="/leaderboard" style={navLink}>Leaderboard</Link>
