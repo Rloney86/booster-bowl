@@ -2,21 +2,24 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { CURRENT_WEEK } from "../lib/config";
+import { resolveActiveWeek } from "../lib/activeWeek";
 
 const SEASON = 2026;
 
 export default function AdminScores() {
   const [user, setUser] = useState(null);
+  const [activeWeek, setActiveWeek] = useState(CURRENT_WEEK);
+  const [selectedWeek, setSelectedWeek] = useState(CURRENT_WEEK);
   const [games, setGames] = useState([]);
   const [drafts, setDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [message, setMessage] = useState("");
 
-  async function loadGames() {
+  async function loadGames(week = selectedWeek) {
     setLoading(true);
     setMessage("");
-    const { data, error } = await supabase.from("games").select("id,away_team,home_team,away_score,home_score,winner,is_final,kickoff_at,season,week").eq("season", SEASON).eq("week", CURRENT_WEEK).order("id");
+    const { data, error } = await supabase.from("games").select("id,away_team,home_team,away_score,home_score,winner,is_final,kickoff_at,season,week").eq("season", SEASON).eq("week", week).order("id");
     if (error) { setMessage("Could not load games: " + error.message); setLoading(false); return; }
     setGames(data || []);
     const next = {};
@@ -26,8 +29,17 @@ export default function AdminScores() {
   }
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data?.user || null));
-    loadGames();
+    let alive = true;
+    (async () => {
+      const [{ data }, week] = await Promise.all([supabase.auth.getUser(), resolveActiveWeek()]);
+      if (!alive) return;
+      setUser(data?.user || null);
+      setActiveWeek(week);
+      const scoringWeek = Math.max(1, week - 1);
+      setSelectedWeek(scoringWeek);
+      await loadGames(scoringWeek);
+    })();
+    return () => { alive = false; };
   }, []);
 
   const completed = useMemo(() => games.filter((g) => g.is_final).length, [games]);
@@ -50,7 +62,7 @@ export default function AdminScores() {
     const { data, error } = await supabase.rpc("admin_finalize_game", {
       p_game_id: game.id,
       p_season: SEASON,
-      p_week: CURRENT_WEEK,
+      p_week: selectedWeek,
       p_away_score: awayScore,
       p_home_score: homeScore,
     });
@@ -58,7 +70,7 @@ export default function AdminScores() {
     if (error) return setMessage("Score was NOT saved: " + error.message);
     if (!data || data.is_final !== true || Number(data.id) !== Number(game.id)) return setMessage("Score was NOT confirmed by the database. Refresh and verify before continuing.");
     setMessage(`✅ Final saved: ${winner} won ${Math.max(awayScore, homeScore)}–${Math.min(awayScore, homeScore)}. Leaderboard scoring will use this result.`);
-    await loadGames();
+    await loadGames(selectedWeek);
   }
 
   async function reopen(game) {
@@ -69,10 +81,12 @@ export default function AdminScores() {
   return <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
     <section className="card">
       <h1 style={{ marginTop: 0 }}>🏈 Score Admin</h1>
-      <p>Season {SEASON} — Week {CURRENT_WEEK}</p>
+      <p>Season {SEASON} — Week {selectedWeek}</p>
+      <p style={{ opacity: .8 }}>Pick boards are currently on Week {activeWeek}. Choose the week you need to score below.</p>
+      <label style={{ display: "block", marginBottom: 12 }}><b>Scoring week: </b><select value={selectedWeek} onChange={async (e) => { const week = Number(e.target.value); setSelectedWeek(week); await loadGames(week); }} style={{ marginLeft: 8, padding: 8 }}>{Array.from({ length: activeWeek }, (_, i) => activeWeek - i).map((week) => <option key={week} value={week}>Week {week}</option>)}</select></label>
       <p style={{ opacity: .8 }}>Enter both scores, verify them, then finalize. The winner is calculated automatically.</p>
       <p><b>{completed} / {games.length}</b> games final</p>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><Link href="/leaderboard" className="button">Leaderboard</Link><button className="button" onClick={loadGames}>Refresh</button></div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><Link href="/leaderboard" className="button">Leaderboard</Link><button className="button" onClick={() => loadGames(selectedWeek)}>Refresh</button></div>
       {message ? <p style={{ marginTop: 14, padding: 12, border: "1px solid #cbd5e1", borderRadius: 12 }}>{message}</p> : null}
     </section>
     <div style={{ height: 18 }} />
