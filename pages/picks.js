@@ -2,6 +2,7 @@ import { CURRENT_WEEK } from "../lib/config";
 import { useEffect, useMemo, useState } from "react";
 import { PICK_BOARD_GROUPS } from "../lib/weeklyGames";
 import { supabase } from "../lib/supabase";
+import { resolveActiveWeek } from "../lib/activeWeek";
 
 const STORAGE_KEY = "bb_selected_booster";
 const PLAYER_KEY = "bb_player_profile";
@@ -17,23 +18,24 @@ const classRegionLabel = (className, regionName) => {
 };
 const mapGame = (g) => ({ id: g.id, away: g.away_team, home: g.home_team, kickoffAt: g.kickoff_at || null, kickoff: g.kickoff_at ? new Date(g.kickoff_at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : "TBD", district: g.district || "", awayClass: g.away_class || "", homeClass: g.home_class || "", awayRegion: g.away_region || "", homeRegion: g.home_region || "", isFeatured: !!g.is_featured });
 
-function makeBoards(rows, directoryRows = rows) {
+function makeBoards(rows, directoryRows = rows, currentWeek = CURRENT_WEEK) {
   const games = rows.map(mapGame);
   const directoryGames = directoryRows.map(mapGame);
   const boards = [];
   const featured = games.filter((g) => g.isFeatured);
   if (featured.length) boards.push({ id: "featured", type: "featured", group: "Featured", label: "Virginia Games of the Week", shortLabel: "Featured", description: "Booster Bowl's statewide featured matchups.", games: featured });
-  [...new Set(games.map((g) => g.district).filter(Boolean))].sort().forEach((d) => boards.push({ id: `district-${slug(d)}`, type: "district", group: "District", label: `${d} District`, shortLabel: d, description: `Week ${CURRENT_WEEK} games involving ${d} District programs.`, games: games.filter((g) => g.district === d) }));
+  [...new Set(games.map((g) => g.district).filter(Boolean))].sort().forEach((d) => boards.push({ id: `district-${slug(d)}`, type: "district", group: "District", label: `${d} District`, shortLabel: d, description: `Week ${currentWeek} games involving ${d} District programs.`, games: games.filter((g) => g.district === d) }));
   const classifications = new Set();
   directoryGames.forEach((g) => { const away = classRegionLabel(g.awayClass, g.awayRegion); const home = classRegionLabel(g.homeClass, g.homeRegion); if (away) classifications.add(away); if (home) classifications.add(home); });
-  [...classifications].sort((a, b) => Number(a[0]) - Number(b[0]) || a.localeCompare(b)).forEach((classification) => boards.push({ id: `classification-${classification.toLowerCase()}`, type: "classification", group: "Classification", label: `VHSL Class ${classification}`, shortLabel: `Class ${classification}`, description: `Week ${CURRENT_WEEK} games involving Class ${classification} programs.`, games: games.filter((g) => classRegionLabel(g.awayClass, g.awayRegion) === classification || classRegionLabel(g.homeClass, g.homeRegion) === classification) }));
+  [...classifications].sort((a, b) => Number(a[0]) - Number(b[0]) || a.localeCompare(b)).forEach((classification) => boards.push({ id: `classification-${classification.toLowerCase()}`, type: "classification", group: "Classification", label: `VHSL Class ${classification}`, shortLabel: `Class ${classification}`, description: `Week ${currentWeek} games involving Class ${classification} programs.`, games: games.filter((g) => classRegionLabel(g.awayClass, g.awayRegion) === classification || classRegionLabel(g.homeClass, g.homeRegion) === classification) }));
   const schools = new Set(); directoryGames.forEach((g) => { schools.add(g.away); schools.add(g.home); });
-  [...schools].sort().forEach((s) => boards.push({ id: `school-${slug(s)}`, type: "school", group: "School", label: s, shortLabel: s, description: games.some((g) => g.away === s || g.home === s) ? `Follow ${s}'s Week ${CURRENT_WEEK} matchup.` : `${s} has no Week ${CURRENT_WEEK} matchup loaded. The school remains available for upcoming weeks.`, games: games.filter((g) => g.away === s || g.home === s) }));
+  [...schools].sort().forEach((s) => boards.push({ id: `school-${slug(s)}`, type: "school", group: "School", label: s, shortLabel: s, description: games.some((g) => g.away === s || g.home === s) ? `Follow ${s}'s Week ${currentWeek} matchup.` : `${s} has no Week ${currentWeek} matchup loaded. The school remains available for upcoming weeks.`, games: games.filter((g) => g.away === s || g.home === s) }));
   return boards.map((b) => ({ ...b, games: uniq(b.games) }));
 }
 
 export default function Picks() {
   const [boards, setBoards] = useState([]);
+  const [activeWeek, setActiveWeek] = useState(CURRENT_WEEK);
   const [boardId, setBoardId] = useState("");
   const [activeGroup, setActiveGroup] = useState("Classification");
   const [schoolSearch, setSchoolSearch] = useState("");
@@ -51,8 +53,19 @@ export default function Picks() {
 
   useEffect(() => {
     let alive = true;
+    async function syncActiveWeek() {
+      const week = await resolveActiveWeek();
+      if (alive) setActiveWeek(week);
+    }
+    syncActiveWeek();
+    const timer = window.setInterval(syncActiveWeek, 60000);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
     (async () => {
-      const weeks = Array.from({ length: 12 - CURRENT_WEEK }, (_, i) => CURRENT_WEEK + i);
+      const weeks = Array.from({ length: Math.max(1, 13 - activeWeek) }, (_, i) => activeWeek + i);
       const results = await Promise.all(weeks.map((week) => supabase.rpc("get_pick_board_games", { p_season: 2026, p_week: week })));
       if (!alive) return;
       const current = results[0];
@@ -67,13 +80,13 @@ export default function Picks() {
         setPickDeadline(null);
         setBoards([]);
         setBoardId("");
-        setCatalogMessage(`No Week ${CURRENT_WEEK} games are currently available.`);
+        setCatalogMessage(`No Week ${activeWeek} games are currently available.`);
         return;
       }
       const kickoffTimes = current.data.map((game) => game.kickoff_at ? Date.parse(game.kickoff_at) : NaN).filter(Number.isFinite);
       setPickDeadline(kickoffTimes.length ? new Date(Math.min(...kickoffTimes)).toISOString() : null);
       const seasonRows = results.flatMap((result) => result.error ? [] : (result.data || []));
-      const next = makeBoards(current.data, seasonRows.length ? seasonRows : current.data);
+      const next = makeBoards(current.data, seasonRows.length ? seasonRows : current.data, activeWeek);
       if (!next.length) {
         setBoards([]);
         setBoardId("");
@@ -85,7 +98,7 @@ export default function Picks() {
       setBoardId((currentId) => next.some((b) => b.id === currentId) ? currentId : "");
     })();
     return () => { alive = false; };
-  }, [user?.id]);
+  }, [activeWeek, user?.id]);
   useEffect(() => { if (board?.group) setActiveGroup(board.group); }, [board?.group]);
   useEffect(() => {
     let alive = true;
@@ -123,6 +136,6 @@ export default function Picks() {
     setBusy(false); setSubmitted(true); setToast(`🏈 ${board.shortLabel} picks saved! You're officially in the Booster Bowl.`);
   }
 
-  return <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}><div className="card"><h1 style={{ marginTop: 0 }}>🏈 Choose Your Pick Board</h1><p>Week {CURRENT_WEEK} — {picksOpen ? "Picks are OPEN" : "Picks are LOCKED"}.</p><p style={{ opacity: .8 }}>{deadlineText}</p>{catalogMessage && <div style={{ marginTop: 12, padding: 12, border: "1px solid #dbe3ef", borderRadius: 12 }}>{catalogMessage}</div>}<div style={{ marginTop: 18 }}><b>1. Choose how you want to pick</b><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>{availableGroups.map((group) => <button key={group} className="button" onClick={() => { setActiveGroup(group); setBoardId(""); setSchoolSearch(""); setToast(""); try { localStorage.removeItem(BOARD_KEY); } catch {} }} disabled={submitted || busy} style={{ opacity: activeGroup === group ? 1 : .58, outline: activeGroup === group ? "2px solid #3b82f6" : "none", padding: "10px 14px" }}>{ICONS[group]} {group}</button>)}</div></div><div style={{ marginTop: 18 }}><b>2. Choose your {activeGroup.toLowerCase()}</b>{activeGroup === "School" && <input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} placeholder="🔎 Search school name..." style={{ width: "100%", boxSizing: "border-box", marginTop: 10, padding: 13, borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 16 }} />}<select value={visibleBoards.some((b) => b.id === boardId) ? boardId : ""} onChange={(e) => e.target.value && changeBoard(e.target.value)} disabled={submitted || busy} style={{ width: "100%", marginTop: 10, padding: 13, borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 16, background: "white" }}><option value="">Select {activeGroup === "Classification" ? "classification" : activeGroup.toLowerCase()}...</option>{visibleBoards.map((b) => <option key={b.id} value={b.id}>{b.label} — {b.games.length} game{b.games.length === 1 ? "" : "s"}</option>)}</select>{activeGroup === "School" && schoolSearch && !visibleBoards.length && <p style={{ opacity: .7 }}>No school matches “{schoolSearch}”.</p>}</div>{board ? <div style={{ marginTop: 18, padding: 14, border: "1px solid #dbe3ef", borderRadius: 14 }}><div style={{ fontSize: 13, opacity: .7 }}>CURRENT PICK BOARD</div><h2 style={{ margin: "5px 0" }}>{ICONS[board.group]} {board.label}</h2><div style={{ opacity: .8 }}>{board.description}</div><b>{games.length ? `${games.length} matchup${games.length === 1 ? "" : "s"} this week` : `No Week ${CURRENT_WEEK} matchup`}</b></div> : <div style={{ marginTop: 18, padding: 14, border: "1px dashed #cbd5e1", borderRadius: 14, opacity: .8 }}><b>Choose a {activeGroup === "Classification" ? "classification" : activeGroup.toLowerCase()} above to load this week&apos;s games.</b></div>}<div style={{ height: 18 }} /><div style={{ display: "grid", gap: 10 }}><input value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Your name" disabled={submitted} style={{ padding: 12 }} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" disabled={authStep !== "email" || submitted} style={{ padding: 12 }} />{!user && authStep === "email" && <button className="button" onClick={sendSignInLink} disabled={busy}>{busy ? "Sending..." : "Email Me a Sign-In Link"}</button>}{!user && authStep === "link-sent" && <><div style={{ padding: 12, border: "1px solid #dbe3ef", borderRadius: 12 }}>Check your email and tap <b>Sign in</b>. The link will return you to Booster Bowl automatically.</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="button" onClick={sendSignInLink} disabled={busy}>{busy ? "Sending..." : "Resend Sign-In Link"}</button><button className="button" onClick={changeEmail} disabled={busy}>Change Email</button></div></>}{user && <b>✅ Signed in as {user.email}</b>}</div>{selectedBooster ? <p>Supporting: <b>{selectedBooster.name}</b> ({selectedBooster.school})</p> : <p><a href="/boosters">Choose a booster club first</a>.</p>}<div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}><div>Picks: <b>{pickedCount}</b> / {games.length}</div><button className="button" onClick={submit} disabled={!picksOpen || submitted || busy || !games.length}>{submitted ? "Submitted ✅" : busy ? "Saving..." : board ? `Submit ${board.shortLabel} Picks` : "Choose a Pick Board"}</button><button className="button" onClick={clearAll} disabled={submitted || busy}>Clear Board</button></div>{toast && <div style={{ marginTop: 12, padding: 12, border: "1px solid #2a3b57", borderRadius: 12 }}>{toast}</div>}</div><div style={{ height: 18 }} />{games.map((g, i) => { const picked = picks[g.id]; return <div key={g.id} className="card"><div style={{ fontSize: 13, fontWeight: 700 }}>{board.group.toUpperCase()} • GAME {i + 1} OF {games.length}</div><div style={{ opacity: .8 }}>Kickoff: {g.kickoff}</div><h2>{g.away} <span style={{ opacity: .6 }}>at</span> {g.home}</h2><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><PickButton label={`Pick ${g.away}`} active={picked === "away"} onClick={() => choose(g.id, "away")} disabled={!picksOpen || submitted} /><PickButton label={`Pick ${g.home}`} active={picked === "home"} onClick={() => choose(g.id, "home")} disabled={!picksOpen || submitted} /></div><p>Your pick: <b>{picked ? (picked === "home" ? g.home : g.away) : "—"}</b></p></div>; })}</div>;
+  return <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}><div className="card"><h1 style={{ marginTop: 0 }}>🏈 Choose Your Pick Board</h1><p>Week {activeWeek} — {picksOpen ? "Picks are OPEN" : "Picks are LOCKED"}.</p><p style={{ opacity: .8 }}>{deadlineText}</p>{catalogMessage && <div style={{ marginTop: 12, padding: 12, border: "1px solid #dbe3ef", borderRadius: 12 }}>{catalogMessage}</div>}<div style={{ marginTop: 18 }}><b>1. Choose how you want to pick</b><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>{availableGroups.map((group) => <button key={group} className="button" onClick={() => { setActiveGroup(group); setBoardId(""); setSchoolSearch(""); setToast(""); try { localStorage.removeItem(BOARD_KEY); } catch {} }} disabled={submitted || busy} style={{ opacity: activeGroup === group ? 1 : .58, outline: activeGroup === group ? "2px solid #3b82f6" : "none", padding: "10px 14px" }}>{ICONS[group]} {group}</button>)}</div></div><div style={{ marginTop: 18 }}><b>2. Choose your {activeGroup.toLowerCase()}</b>{activeGroup === "School" && <input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} placeholder="🔎 Search school name..." style={{ width: "100%", boxSizing: "border-box", marginTop: 10, padding: 13, borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 16 }} />}<select value={visibleBoards.some((b) => b.id === boardId) ? boardId : ""} onChange={(e) => e.target.value && changeBoard(e.target.value)} disabled={submitted || busy} style={{ width: "100%", marginTop: 10, padding: 13, borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 16, background: "white" }}><option value="">Select {activeGroup === "Classification" ? "classification" : activeGroup.toLowerCase()}...</option>{visibleBoards.map((b) => <option key={b.id} value={b.id}>{b.label} — {b.games.length} game{b.games.length === 1 ? "" : "s"}</option>)}</select>{activeGroup === "School" && schoolSearch && !visibleBoards.length && <p style={{ opacity: .7 }}>No school matches “{schoolSearch}”.</p>}</div>{board ? <div style={{ marginTop: 18, padding: 14, border: "1px solid #dbe3ef", borderRadius: 14 }}><div style={{ fontSize: 13, opacity: .7 }}>CURRENT PICK BOARD</div><h2 style={{ margin: "5px 0" }}>{ICONS[board.group]} {board.label}</h2><div style={{ opacity: .8 }}>{board.description}</div><b>{games.length ? `${games.length} matchup${games.length === 1 ? "" : "s"} this week` : `No Week ${currentWeek} matchup`}</b></div> : <div style={{ marginTop: 18, padding: 14, border: "1px dashed #cbd5e1", borderRadius: 14, opacity: .8 }}><b>Choose a {activeGroup === "Classification" ? "classification" : activeGroup.toLowerCase()} above to load this week&apos;s games.</b></div>}<div style={{ height: 18 }} /><div style={{ display: "grid", gap: 10 }}><input value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Your name" disabled={submitted} style={{ padding: 12 }} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" disabled={authStep !== "email" || submitted} style={{ padding: 12 }} />{!user && authStep === "email" && <button className="button" onClick={sendSignInLink} disabled={busy}>{busy ? "Sending..." : "Email Me a Sign-In Link"}</button>}{!user && authStep === "link-sent" && <><div style={{ padding: 12, border: "1px solid #dbe3ef", borderRadius: 12 }}>Check your email and tap <b>Sign in</b>. The link will return you to Booster Bowl automatically.</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="button" onClick={sendSignInLink} disabled={busy}>{busy ? "Sending..." : "Resend Sign-In Link"}</button><button className="button" onClick={changeEmail} disabled={busy}>Change Email</button></div></>}{user && <b>✅ Signed in as {user.email}</b>}</div>{selectedBooster ? <p>Supporting: <b>{selectedBooster.name}</b> ({selectedBooster.school})</p> : <p><a href="/boosters">Choose a booster club first</a>.</p>}<div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}><div>Picks: <b>{pickedCount}</b> / {games.length}</div><button className="button" onClick={submit} disabled={!picksOpen || submitted || busy || !games.length}>{submitted ? "Submitted ✅" : busy ? "Saving..." : board ? `Submit ${board.shortLabel} Picks` : "Choose a Pick Board"}</button><button className="button" onClick={clearAll} disabled={submitted || busy}>Clear Board</button></div>{toast && <div style={{ marginTop: 12, padding: 12, border: "1px solid #2a3b57", borderRadius: 12 }}>{toast}</div>}</div><div style={{ height: 18 }} />{games.map((g, i) => { const picked = picks[g.id]; return <div key={g.id} className="card"><div style={{ fontSize: 13, fontWeight: 700 }}>{board.group.toUpperCase()} • GAME {i + 1} OF {games.length}</div><div style={{ opacity: .8 }}>Kickoff: {g.kickoff}</div><h2>{g.away} <span style={{ opacity: .6 }}>at</span> {g.home}</h2><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><PickButton label={`Pick ${g.away}`} active={picked === "away"} onClick={() => choose(g.id, "away")} disabled={!picksOpen || submitted} /><PickButton label={`Pick ${g.home}`} active={picked === "home"} onClick={() => choose(g.id, "home")} disabled={!picksOpen || submitted} /></div><p>Your pick: <b>{picked ? (picked === "home" ? g.home : g.away) : "—"}</b></p></div>; })}</div>;
 }
 function PickButton({ label, active, onClick, disabled }) { return <button className="button" onClick={onClick} disabled={disabled} style={{ outline: active ? "2px solid #3b82f6" : "none" }}>{active ? "✅ " : ""}{label}</button>; }
