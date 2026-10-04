@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { CURRENT_WEEK } from "../lib/config";
+import { resolveActiveWeek } from "../lib/activeWeek";
 
 const BOOSTER_KEY = "bb_selected_booster";
 const SEASON = 2026;
@@ -28,6 +29,7 @@ function calculateAccuracy(picks, games) {
 
 export default function Leaderboard() {
   const [myBooster, setMyBooster] = useState(null);
+  const [activeWeek, setActiveWeek] = useState(CURRENT_WEEK);
   const [mySeasonAccuracy, setMySeasonAccuracy] = useState(null);
   const [myWeekAccuracy, setMyWeekAccuracy] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -44,11 +46,11 @@ export default function Leaderboard() {
     if (b) setMyBooster(b);
     let cancelled = false;
 
-    async function loadLeaderboards() {
+    async function loadLeaderboards(week) {
       try {
         const [seasonResult, weekResult] = await Promise.all([
           supabase.rpc("get_booster_leaderboard"),
-          supabase.rpc("get_booster_leaderboard_week", { p_season: SEASON, p_week: CURRENT_WEEK }),
+          supabase.rpc("get_booster_leaderboard_week", { p_season: SEASON, p_week: week }),
         ]);
         if (seasonResult.error) throw seasonResult.error;
         if (weekResult.error) throw weekResult.error;
@@ -66,7 +68,7 @@ export default function Leaderboard() {
       }
     }
 
-    async function loadMyStats() {
+    async function loadMyStats(week) {
       setStatsLoading(true);
       setStatsError("");
       try {
@@ -94,7 +96,7 @@ export default function Leaderboard() {
         if (gamesError) throw gamesError;
 
         const seasonGames = (games || []).filter((g) => Number(g.season) === SEASON);
-        const weekGames = seasonGames.filter((g) => Number(g.week) === Number(CURRENT_WEEK));
+        const weekGames = seasonGames.filter((g) => Number(g.week) === Number(week));
         const seasonIds = new Set(seasonGames.map((g) => String(g.id)));
         const weekIds = new Set(weekGames.map((g) => String(g.id)));
         const seasonPicks = savedPicks.filter((p) => seasonIds.has(String(p.game_id)));
@@ -111,14 +113,20 @@ export default function Leaderboard() {
       }
     }
 
-    loadLeaderboards();
-    loadMyStats();
+    async function initialize() {
+      const week = await resolveActiveWeek();
+      if (cancelled) return;
+      setActiveWeek(week);
+      await Promise.all([loadLeaderboards(week), loadMyStats(week)]);
+    }
+
+    initialize();
     return () => { cancelled = true; };
   }, []);
 
   const activeStats = view === "week" ? weekStats : seasonStats;
   const myAccuracy = view === "week" ? myWeekAccuracy : mySeasonAccuracy;
-  const statLabel = view === "week" ? `Week ${CURRENT_WEEK}` : "Season";
+  const statLabel = view === "week" ? `Week ${activeWeek}` : "Season";
   const liveByName = useMemo(() => new Map((activeStats || []).map((row) => [row.booster_name, row])), [activeStats]);
 
   const computedBoosters = useMemo(() => BOOSTERS.map((b) => {
@@ -137,10 +145,10 @@ export default function Leaderboard() {
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
       <section className="card">
         <h1 style={{ marginTop: 0 }}>Booster Bowl Leaderboard</h1>
-        <p style={{ opacity: 0.9 }}>Season {SEASON} — {view === "week" ? `Week ${CURRENT_WEEK} Standings` : "Season Standings"}</p>
+        <p style={{ opacity: 0.9 }}>Season {SEASON} — {view === "week" ? `Week ${activeWeek} Standings` : "Season Standings"}</p>
         {teamStatsMessage ? <p style={{ marginTop: 8, opacity: 0.75 }}>{teamStatsMessage}</p> : null}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}><Link href="/" className="button">← Back Home</Link><Link href="/booster" className="button">Choose Booster</Link><Link href="/picks" className="button">Make Picks</Link></div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}><button className="button" onClick={() => setView("week")} style={{ opacity: view === "week" ? 1 : 0.65 }}>🏈 Week {CURRENT_WEEK}</button><button className="button" onClick={() => setView("season")} style={{ opacity: view === "season" ? 1 : 0.65 }}>🏆 Season</button></div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}><button className="button" onClick={() => setView("week")} style={{ opacity: view === "week" ? 1 : 0.65 }}>🏈 Week {activeWeek}</button><button className="button" onClick={() => setView("season")} style={{ opacity: view === "season" ? 1 : 0.65 }}>🏆 Season</button></div>
         <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}><div style={{ opacity: 0.9 }}>Sort by:</div><button className="button" onClick={() => setSortBy("rating")} style={{ opacity: sortBy === "rating" ? 1 : 0.65 }}>🎯 Rating</button><button className="button" onClick={() => setSortBy("activity")} style={{ opacity: sortBy === "activity" ? 1 : 0.65 }}>👥 Activity</button></div>
       </section>
 
