@@ -40,6 +40,15 @@ export default function MyApp({ Component, pageProps }) {
   }, []);
 
   useEffect(() => {
+    function openLogin() {
+      setAccountOpen(true);
+      setMessage("");
+    }
+    window.addEventListener("booster-bowl-open-login", openLogin);
+    return () => window.removeEventListener("booster-bowl-open-login", openLogin);
+  }, []);
+
+  useEffect(() => {
     if (cooldown <= 0) return;
     const timer = window.setTimeout(() => setCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
     return () => window.clearTimeout(timer);
