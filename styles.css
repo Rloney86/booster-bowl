@@ -226,3 +226,80 @@ footer { color: var(--muted); }
 @keyframes pulse-wave { 0%,100% { box-shadow: inset 0 1px rgba(255,255,255,.04), 0 0 12px rgba(0,240,255,.08), 0 18px 50px rgba(0,0,0,.38); } 50% { box-shadow: inset 0 1px rgba(255,255,255,.08), 0 0 28px rgba(0,240,255,.22), 0 18px 60px rgba(0,0,0,.45); } }
 @keyframes data-stream-scan { 0% { transform:translateY(-20px); opacity:0; } 12%,82% { opacity:.7; } 100% { transform:translateY(520px); opacity:0; } }
 @media (prefers-reduced-motion: reduce) { .electric-card, .scan-panel::after { animation:none; } }
+
+/* Tactical HUD dashboard */
+.home-hud-layout { display:grid; grid-template-columns:300px minmax(0,1fr); gap:20px; align-items:start; }
+.home-main-stack { display:grid; gap:18px; min-width:0; }
+.home-feature-grid,.dashboard-stat-grid { display:grid; gap:14px; }
+.home-feature-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.dashboard-stat-grid { grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:24px; }
+.home-dashboard-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; }
+.dashboard-panel,.hud-grid-card {
+  background-color:rgba(10,15,24,.78);
+  background-image:repeating-linear-gradient(0deg,transparent 0,transparent 23px,rgba(0,240,255,.045) 24px),repeating-linear-gradient(90deg,transparent 0,transparent 23px,rgba(0,240,255,.045) 24px);
+  backdrop-filter:blur(12px);
+}
+.dashboard-panel,.home-feature-card,.active-support-card { padding:22px; }
+.home-feature-card h2,.home-dashboard-header h2 { margin:8px 0; }
+.home-feature-card p,.dashboard-subtext { color:var(--muted); }
+.kicker-violet { color:var(--violet); }
+.kicker-lime { color:var(--lime); }
+.active-support-card { margin-top:0; }
+.active-support-card p:last-child { margin:8px 0 0; }
+.active-support-card strong { color:var(--cyan); }
+.home-footer { opacity:.75; font-size:14px; }
+.stat-card { padding:18px; }
+.stat-label { margin:0; color:var(--muted); font-size:12px; font-weight:800; letter-spacing:.16em; }
+.stat-value { margin-top:18px; }
+.stat-track { height:4px; margin-top:16px; overflow:hidden; background:rgba(255,255,255,.1); }
+.stat-track span { display:block; width:72%; height:100%; background:linear-gradient(90deg,#6d00ff,#bd00ff,#ff5fff,#bd00ff); background-size:220% 100%; box-shadow:0 0 14px var(--violet); animation:progress-stream 2.4s linear infinite; }
+.stat-track .stat-ready { width:88%; background:linear-gradient(90deg,#00a66b,#39ff14,#b6ff9f,#39ff14); box-shadow:0 0 14px var(--lime); }
+
+.tactical-sidebar {
+  position:sticky; top:92px; display:flex; min-height:610px; flex-direction:column; gap:22px; overflow:hidden; padding:22px;
+  color:var(--text); background:rgba(7,9,15,.88); border:1px solid rgba(0,240,255,.36); backdrop-filter:blur(16px);
+  box-shadow:0 0 24px rgba(0,240,255,.14),inset 0 0 30px rgba(0,240,255,.035);
+}
+.hud-angular { clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px); }
+.tactical-sidebar::before { position:absolute; inset:0; content:""; pointer-events:none; background-image:linear-gradient(rgba(0,240,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,240,255,.04) 1px,transparent 1px); background-size:24px 24px; mask-image:linear-gradient(to bottom,#000,transparent 82%); }
+.tactical-sidebar::after { position:absolute; top:0; right:22px; width:1px; height:100%; content:""; background:linear-gradient(transparent,var(--cyan),transparent); opacity:.42; }
+.hud-crosshair { position:absolute; z-index:2; width:16px; height:16px; opacity:.8; }
+.hud-crosshair::before,.hud-crosshair::after { position:absolute; content:""; background:var(--cyan); }
+.hud-crosshair::before { top:7px; left:0; width:16px; height:1px; }
+.hud-crosshair::after { top:0; left:7px; width:1px; height:16px; }
+.hud-crosshair-top { top:12px; right:16px; }
+.hud-crosshair-bottom { right:16px; bottom:14px; transform:rotate(45deg); }
+.tactical-header,.hud-panel-header,.hud-player-module,.hud-match-status,.hud-telemetry-row,.tactical-footer { position:relative; z-index:1; }
+.tactical-header,.hud-panel-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.tactical-header h2 { margin:5px 0 0; font-family:"Rajdhani",sans-serif; font-size:1.3rem; letter-spacing:.08em; }
+.hud-eyebrow,.hud-label { color:var(--cyan); font-family:"Rajdhani",sans-serif; font-size:.68rem; font-weight:700; letter-spacing:.16em; }
+.hud-status-dot { display:inline-block; flex:0 0 auto; width:9px; height:9px; border-radius:50%; }
+.hud-status-online { background:var(--lime); box-shadow:0 0 12px var(--lime); }
+.hud-status-searching { background:var(--violet); box-shadow:0 0 14px var(--violet); animation:violet-blink 1.2s ease-in-out infinite; }
+.hud-player-module { display:flex; align-items:center; gap:12px; padding:14px; border:1px solid rgba(189,0,255,.42); background:rgba(189,0,255,.08); clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px); }
+.hud-player-avatar { display:grid; flex:0 0 auto; width:44px; height:44px; place-items:center; color:#050508; font-weight:900; background:linear-gradient(135deg,var(--cyan),var(--violet)); box-shadow:0 0 18px rgba(0,240,255,.6); }
+.hud-player-module strong,.hud-player-rank { display:block; overflow-wrap:anywhere; }
+.hud-player-module strong { font-size:.85rem; }
+.hud-player-rank { margin-top:4px; color:var(--muted); font-size:.66rem; letter-spacing:.1em; }
+.tactical-nav { position:relative; z-index:1; display:grid; gap:8px; }
+.tactical-nav-item { position:relative; display:flex; min-height:46px; align-items:center; gap:11px; width:100%; padding:0 12px; border:1px solid transparent; color:var(--muted); transition:160ms ease; }
+.tactical-nav-item:hover { color:var(--text); border-color:rgba(0,240,255,.4); background:rgba(0,240,255,.08); }
+.tactical-nav-item.is-active { color:#031018; border-color:var(--cyan); background:var(--cyan); box-shadow:0 0 20px rgba(0,240,255,.7); animation:cyan-boot-flash 420ms ease-out; }
+.hud-nav-icon { width:20px; font-size:1.2rem; text-align:center; }
+.hud-active-marker { margin-left:auto; font-family:"Rajdhani",sans-serif; font-size:.62rem; font-weight:800; letter-spacing:.1em; }
+.hud-status-panel { position:relative; z-index:1; margin-top:auto; padding:15px; border:1px solid rgba(189,0,255,.45); background:rgba(189,0,255,.075); clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px); }
+.hud-technical-tag { padding:3px 6px; color:var(--lime); border:1px solid rgba(57,255,20,.6); font-family:"Rajdhani",sans-serif; font-size:.62rem; letter-spacing:.12em; }
+.hud-match-status { display:flex; align-items:center; gap:9px; margin:18px 0 12px; font-size:.72rem; }
+.hud-progress-track { height:7px; overflow:hidden; background:rgba(255,255,255,.1); }
+.hud-progress-fill { width:76%; height:100%; background:linear-gradient(90deg,#6d00ff,#bd00ff,#ff5fff,#bd00ff); background-size:220% 100%; box-shadow:0 0 14px var(--violet); animation:progress-stream 2.4s linear infinite; }
+.hud-telemetry-row,.tactical-footer { display:flex; justify-content:space-between; gap:10px; margin-top:10px; color:#718095; font-family:"Rajdhani",sans-serif; font-size:.64rem; letter-spacing:.08em; }
+.tactical-footer { margin-top:0; }
+@keyframes progress-stream { from { background-position:0 50%; } to { background-position:220% 50%; } }
+@keyframes cyan-boot-flash { 0% { box-shadow:0 0 0 var(--cyan); } 45% { color:#fff; box-shadow:0 0 34px var(--cyan); } 100% { color:#031018; box-shadow:0 0 20px rgba(0,240,255,.7); } }
+@keyframes violet-blink { 0%,100% { opacity:.55; } 50% { opacity:1; } }
+
+@media (max-width:900px) {
+  .home-hud-layout { grid-template-columns:1fr; }
+  .tactical-sidebar { position:relative; top:auto; min-height:0; }
+  .home-feature-grid,.dashboard-stat-grid { grid-template-columns:1fr; }
+}
