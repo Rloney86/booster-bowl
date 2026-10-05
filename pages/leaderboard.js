@@ -36,6 +36,10 @@ export default function Leaderboard() {
   const [statsError, setStatsError] = useState("");
   const [seasonStats, setSeasonStats] = useState([]);
   const [weekStats, setWeekStats] = useState([]);
+  const [playerSeasonStats, setPlayerSeasonStats] = useState([]);
+  const [playerWeekStats, setPlayerWeekStats] = useState([]);
+  const [playerStatsLive, setPlayerStatsLive] = useState(false);
+  const [playerStatsMessage, setPlayerStatsMessage] = useState("");
   const [view, setView] = useState("week");
   const [teamStatsLive, setTeamStatsLive] = useState(false);
   const [teamStatsMessage, setTeamStatsMessage] = useState("");
@@ -64,6 +68,28 @@ export default function Leaderboard() {
         if (!cancelled) {
           setTeamStatsLive(false);
           setTeamStatsMessage(error?.message || "Unable to load live team standings.");
+        }
+      }
+    }
+
+    async function loadPlayerLeaderboards(week) {
+      try {
+        const [seasonResult, weekResult] = await Promise.all([
+          supabase.rpc("get_player_leaderboard", { p_season: SEASON, p_week: null }),
+          supabase.rpc("get_player_leaderboard", { p_season: SEASON, p_week: week }),
+        ]);
+        if (seasonResult.error) throw seasonResult.error;
+        if (weekResult.error) throw weekResult.error;
+        if (!cancelled) {
+          setPlayerSeasonStats(seasonResult.data || []);
+          setPlayerWeekStats(weekResult.data || []);
+          setPlayerStatsLive(true);
+          setPlayerStatsMessage("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPlayerStatsLive(false);
+          setPlayerStatsMessage(error?.message || "Unable to load individual standings.");
         }
       }
     }
@@ -117,7 +143,7 @@ export default function Leaderboard() {
       const week = await resolveActiveWeek();
       if (cancelled) return;
       setActiveWeek(week);
-      await Promise.all([loadLeaderboards(week), loadMyStats(week)]);
+      await Promise.all([loadLeaderboards(week), loadPlayerLeaderboards(week), loadMyStats(week)]);
     }
 
     initialize();
@@ -125,7 +151,9 @@ export default function Leaderboard() {
   }, []);
 
   const activeStats = view === "week" ? weekStats : seasonStats;
+  const activePlayerStats = view === "week" ? playerWeekStats : playerSeasonStats;
   const myAccuracy = view === "week" ? myWeekAccuracy : mySeasonAccuracy;
+  const myPlayerStanding = activePlayerStats.find((row) => row.is_current_user) || null;
   const statLabel = view === "week" ? `Week ${activeWeek}` : "Season";
   const liveByName = useMemo(() => new Map((activeStats || []).map((row) => [row.booster_name, row])), [activeStats]);
 
@@ -156,7 +184,23 @@ export default function Leaderboard() {
       <section className="card">
         <h2 style={{ marginTop: 0 }}>My Stat Book</h2>
         {myBooster ? <p style={{ marginTop: 6, opacity: 0.9 }}>Selected booster: <b>{myBooster.name}</b> ({myBooster.school})</p> : <p style={{ marginTop: 6, opacity: 0.85 }}>No booster selected yet.</p>}
+        {myPlayerStanding ? <p style={{ margin: "6px 0" }}>🏅 {statLabel} Player Rank: <b>#{Number(myPlayerStanding.ranking)}</b></p> : null}
         {statsLoading ? <p style={{ marginTop: 10, opacity: 0.85 }}>Loading your official results...</p> : statsError ? <p style={{ marginTop: 10, opacity: 0.85 }}>Could not load your official results: {statsError}</p> : myAccuracy?.total ? <><p style={{ margin: "6px 0" }}>🎯 {statLabel} Rating (completed games): <b>{myAccuracy.percent}%</b></p><p style={{ margin: "6px 0" }}>📊 Correct Picks: <b>{myAccuracy.correct}</b> / {myAccuracy.total}</p></> : <p style={{ marginTop: 10, opacity: 0.85 }}>No completed {statLabel.toLowerCase()} picks yet — your rating will appear after a game is final.</p>}
+      </section>
+
+      <div style={{ height: 18 }} />
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>🏅 Player Standings</h2>
+        <p style={{ opacity: 0.85 }}>{statLabel} rankings use correct picks first, with accuracy as the tiebreaker.</p>
+        {!playerStatsLive ? <p style={{ marginBottom: 0 }}>{playerStatsMessage || "Individual standings are temporarily unavailable."}</p> : !activePlayerStats.length ? <p style={{ marginBottom: 0 }}>No completed player picks yet.</p> : <div style={{ display: "grid", gap: 10 }}>
+          {activePlayerStats.map((player, index) => {
+            const mine = !!player.is_current_user;
+            return <div key={`${player.display_name}-${player.booster_name}-${index}`} style={{ padding: 12, border: mine ? "2px solid #00cfa5" : "1px solid #dbe3ef", borderRadius: 12, background: mine ? "rgba(0, 245, 196, 0.08)" : "transparent" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}><b>#{Number(player.ranking)} — {player.display_name}{mine ? " (You)" : ""}</b><b>{Number(player.correct_picks)}/{Number(player.completed_picks)}</b></div>
+              <div style={{ marginTop: 4, opacity: 0.8 }}>{player.booster_name} • {Number(player.accuracy_percent)}% correct</div>
+            </div>;
+          })}
+        </div>}
       </section>
 
       <div style={{ height: 18 }} />
