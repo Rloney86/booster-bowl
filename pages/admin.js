@@ -8,6 +8,7 @@ const SEASON = 2026;
 
 export default function AdminScores() {
   const [user, setUser] = useState(null);
+  const [authorized, setAuthorized] = useState(null);
   const [activeWeek, setActiveWeek] = useState(CURRENT_WEEK);
   const [selectedWeek, setSelectedWeek] = useState(CURRENT_WEEK);
   const [games, setGames] = useState([]);
@@ -33,8 +34,24 @@ export default function AdminScores() {
     (async () => {
       const [{ data }, week] = await Promise.all([supabase.auth.getUser(), resolveActiveWeek()]);
       if (!alive) return;
-      setUser(data?.user || null);
+      const signedInUser = data?.user || null;
+      setUser(signedInUser);
       setActiveWeek(week);
+      if (!signedInUser) {
+        setAuthorized(false);
+        setLoading(false);
+        setMessage("Sign in with the authorized admin account to manage results.");
+        return;
+      }
+      const { data: hasAccess, error: accessError } = await supabase.rpc("admin_is_authorized");
+      if (!alive) return;
+      if (accessError || hasAccess !== true) {
+        setAuthorized(false);
+        setLoading(false);
+        setMessage(accessError ? "Could not verify admin access: " + accessError.message : "This account does not have score-admin access.");
+        return;
+      }
+      setAuthorized(true);
       const scoringWeek = Math.max(1, week - 1);
       setSelectedWeek(scoringWeek);
       await loadGames(scoringWeek);
@@ -74,8 +91,30 @@ export default function AdminScores() {
   }
 
   async function reopen(game) {
-    if (!user) return setMessage("Sign in first.");
-    setMessage("Reopening finalized games is temporarily disabled while the secure admin reopen function is being added.");
+    if (!user || !authorized) return setMessage("Authorized admin access is required.");
+    if (!window.confirm(`Reopen ${game.away_team} at ${game.home_team}? The current score and winner will be cleared so you can enter the corrected result.`)) return;
+    setSavingId(game.id);
+    setMessage("");
+    const { data, error } = await supabase.rpc("admin_reopen_game", {
+      p_game_id: game.id,
+      p_season: SEASON,
+      p_week: selectedWeek,
+    });
+    setSavingId(null);
+    if (error) return setMessage("Game was NOT reopened: " + error.message);
+    if (!data || data.is_final !== false || Number(data.id) !== Number(game.id)) return setMessage("The database did not confirm the reopen. Refresh and verify before continuing.");
+    setMessage(`✅ Reopened ${game.away_team} at ${game.home_team}. Enter the corrected scores and finalize it again.`);
+    await loadGames(selectedWeek);
+  }
+
+  if (authorized !== true) {
+    return <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
+      <section className="card">
+        <h1 style={{ marginTop: 0 }}>🔒 Score Admin</h1>
+        <p>{loading ? "Checking admin access..." : message || "Authorized admin access is required."}</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><Link href="/" className="button">Home</Link><Link href="/leaderboard" className="button">Leaderboard</Link></div>
+      </section>
+    </main>;
   }
 
   return <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
