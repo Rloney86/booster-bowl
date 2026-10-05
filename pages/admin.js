@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { CURRENT_WEEK } from "../lib/config";
 import { resolveActiveWeek } from "../lib/activeWeek";
+import { parseBulkResults } from "../lib/bulkResults";
 
 const SEASON = 2026;
 
@@ -17,10 +18,17 @@ export default function AdminScores() {
   const [savingId, setSavingId] = useState(null);
   const [savingAction, setSavingAction] = useState("");
   const [message, setMessage] = useState("");
+  const [bulkText, setBulkText] = useState("");
+  const [bulkRows, setBulkRows] = useState([]);
+  const [bulkSelected, setBulkSelected] = useState({});
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   async function loadGames(week = selectedWeek) {
     setLoading(true);
     setMessage("");
+    setBulkText("");
+    setBulkRows([]);
+    setBulkSelected({});
     const { data, error } = await supabase.from("games").select("id,away_team,home_team,away_score,home_score,winner,is_final,kickoff_at,season,week,sync_status").eq("season", SEASON).eq("week", week).or("sync_status.is.null,sync_status.eq.scheduled").order("id");
     if (error) { setMessage("Could not load games: " + error.message); setLoading(false); return; }
     setGames(data || []);
@@ -61,10 +69,51 @@ export default function AdminScores() {
   }, []);
 
   const completed = useMemo(() => games.filter((g) => g.is_final).length, [games]);
+  const bulkApproved = useMemo(() => bulkRows.filter((row) => row.status === "ready" && bulkSelected[row.lineNumber]), [bulkRows, bulkSelected]);
+  const bulkSummary = useMemo(() => bulkRows.reduce((summary, row) => {
+    summary[row.status] = (summary[row.status] || 0) + 1;
+    return summary;
+  }, {}), [bulkRows]);
 
   function setScore(id, side, value) {
     if (value !== "" && !/^\d+$/.test(value)) return;
     setDrafts((current) => ({ ...current, [id]: { ...(current[id] || {}), [side]: value } }));
+  }
+
+  function reviewBulkResults() {
+    const rows = parseBulkResults(bulkText, games);
+    setBulkRows(rows);
+    setBulkSelected(Object.fromEntries(rows.filter((row) => row.status === "ready").map((row) => [row.lineNumber, true])));
+    if (!rows.length) setMessage("Paste at least one result before reviewing.");
+    else setMessage("");
+  }
+
+  function toggleBulkLine(lineNumber) {
+    setBulkSelected((current) => ({ ...current, [lineNumber]: !current[lineNumber] }));
+  }
+
+  async function finalizeBulkResults() {
+    if (!user || !authorized) return setMessage("Authorized admin access is required.");
+    if (!bulkApproved.length) return setMessage("Select at least one exact-match result to finalize.");
+    if (!window.confirm(`Finalize ${bulkApproved.length} reviewed result${bulkApproved.length === 1 ? "" : "s"}? This will grade every related pick immediately. The batch will save completely or not at all.`)) return;
+    setBulkSaving(true);
+    setMessage("");
+    const payload = bulkApproved.map((row) => ({
+      game_id: row.game.id,
+      away_score: row.awayScore,
+      home_score: row.homeScore,
+    }));
+    const { data, error } = await supabase.rpc("admin_finalize_games_bulk", {
+      p_season: SEASON,
+      p_week: selectedWeek,
+      p_results: payload,
+    });
+    setBulkSaving(false);
+    if (error) return setMessage("No bulk results were saved: " + error.message);
+    const savedCount = Array.isArray(data) ? data.length : 0;
+    if (savedCount !== payload.length) return setMessage("The database did not confirm the complete batch. Refresh and verify before continuing.");
+    await loadGames(selectedWeek);
+    setMessage(`✅ ${savedCount} reviewed result${savedCount === 1 ? "" : "s"} finalized. Picks and leaderboards are updated.`);
   }
 
   async function saveFinal(game) {
@@ -147,6 +196,24 @@ export default function AdminScores() {
       <p><b>{completed} / {games.length}</b> games final</p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><Link href="/leaderboard" className="button">Leaderboard</Link><button className="button" onClick={() => loadGames(selectedWeek)}>Refresh</button></div>
       {message ? <p style={{ marginTop: 14, padding: 12, border: "1px solid #cbd5e1", borderRadius: 12 }}>{message}</p> : null}
+      <details style={{ marginTop: 16 }}>
+        <summary style={{ cursor: "pointer", fontWeight: 800 }}>📋 Bulk Results Import</summary>
+        <p style={{ opacity: .8 }}>Paste one completed game per line. Accepted format: <b>Away Team, 21, Home Team, 14</b> or <b>Away Team 21 - Home Team 14</b>.</p>
+        <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"Manchester, 14, Midlothian, 28\nTeam A 7 - Team B 21"} rows={8} style={{ width: "100%", boxSizing: "border-box", padding: 12, borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 15 }} />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}><button className="button" onClick={reviewBulkResults} disabled={bulkSaving}>Review Matches</button>{bulkRows.length ? <button className="button" onClick={finalizeBulkResults} disabled={bulkSaving || !bulkApproved.length}>{bulkSaving ? "Finalizing..." : `Finalize ${bulkApproved.length} Approved`}</button> : null}</div>
+        {bulkRows.length ? <div style={{ marginTop: 12 }}>
+          <p><b>{bulkSummary.ready || 0}</b> exact match{(bulkSummary.ready || 0) === 1 ? "" : "es"} ready • <b>{bulkRows.length - (bulkSummary.ready || 0)}</b> blocked/review item{bulkRows.length - (bulkSummary.ready || 0) === 1 ? "" : "s"}</p>
+          <div style={{ display: "grid", gap: 8 }}>
+            {bulkRows.map((row) => {
+              const ready = row.status === "ready";
+              const color = ready ? "#0f766e" : row.status === "final" ? "#475569" : "#b45309";
+              return <div key={row.lineNumber} style={{ border: `1px solid ${ready ? "#5eead4" : "#fbbf24"}`, borderRadius: 10, padding: 10 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>{ready ? <input type="checkbox" checked={!!bulkSelected[row.lineNumber]} onChange={() => toggleBulkLine(row.lineNumber)} aria-label={`Approve line ${row.lineNumber}`} /> : <span>⚠️</span>}<div><b style={{ color }}>Line {row.lineNumber}: {row.original}</b><div style={{ marginTop: 4 }}>{row.game ? `${row.game.away_team} ${row.awayScore} — ${row.game.home_team} ${row.homeScore}` : row.message}</div><div style={{ fontSize: 13, opacity: .75 }}>{row.message}</div></div></div>
+              </div>;
+            })}
+          </div>
+        </div> : null}
+      </details>
     </section>
     <div style={{ height: 18 }} />
     {loading ? <section className="card"><p>Loading games...</p></section> : games.map((g, index) => <section className="card" key={g.id} style={{ marginBottom: 14 }}>
