@@ -83,13 +83,13 @@ export default function MyApp({ Component, pageProps }) {
     }
     setCooldown(60);
     setAuthStep("otp-sent");
-    setMessage("Enter the eight-digit code from the newest Booster Bowl email.");
+    setMessage("Enter the six-digit code from the newest Booster Bowl email.");
   }
 
   async function verifyCode() {
     const token = otp.trim();
-    if (!/^\\d{8}$/.test(token)) {
-      setMessage("Enter the eight-digit verification code from your email.");
+    if (!/^\\d{6}$/.test(token)) {
+      setMessage("Enter the six-digit verification code from your email.");
       return;
     }
     setBusy(true);
@@ -257,11 +257,11 @@ export default function MyApp({ Component, pageProps }) {
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         value={otp}
-                        onChange={(event) => setOtp(event.target.value.replace(/\\D/g, "").slice(0, 8))}
-                        placeholder="8-digit verification code"
+                        onChange={(event) => setOtp(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+                        placeholder="6-digit verification code"
                         aria-label="Verification code"
                       />
-                      <button className="button" onClick={verifyCode} disabled={busy || otp.length !== 8}>
+                      <button className="button" onClick={verifyCode} disabled={busy || otp.length !== 6}>
                         {busy ? "Verifying..." : "Verify Code"}
                       </button>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
