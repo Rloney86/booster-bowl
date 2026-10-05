@@ -1,11 +1,3 @@
-<section className="hero">
-  <div className="kicker"><span className="kicker-dot"></span> FUNDRAISE LIKE IT’S 2025</div>
-  <h1 className="h1"><span className="grad-text">Booster Bowl</span></h1>
-  <p className="lede">
-    A booster-first fundraiser that rallies your community — with friendly competition and season-long bragging rights.
-  </p>
-</section>
-
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -23,96 +15,74 @@ export default function Home() {
 
   return (
     <main className="container">
-
-      {/* HERO */}
-      <section className="card" style={{ marginTop: 24 }}>
-        <h1 style={{ marginTop: 0 }}>Booster Bowl</h1>
-
-        <p style={{ fontSize: 18, opacity: 0.95, lineHeight: 1.5 }}>
-          A community fundraiser that helps school booster clubs raise support —
-          with friendly competition and season-long bragging rights.
+      <section className="hero">
+        <p className="kicker"><span className="kicker-dot" /> LIVE BOOSTER BOWL DASHBOARD</p>
+        <h1 className="h1"><span className="grad-text">Booster Bowl</span></h1>
+        <p className="lede">
+          A high-voltage community fundraiser built around weekly picks, school pride, and season-long bragging rights.
         </p>
+      </section>
 
-        {selected ? (
-          <p style={{ marginTop: 10, opacity: 0.9 }}>
-            Selected booster: <b>{selected.name}</b> ({selected.school})
-          </p>
-        ) : (
-          <p style={{ marginTop: 10, opacity: 0.85 }}>
-            No booster selected yet — choose one to get started.
-          </p>
-        )}
+      <section className="electric-card scan-panel" style={{ padding: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <p className="kicker">PERFORMANCE CORE</p>
+            <h2 style={{ margin: "8px 0 4px" }}>Dashboard Statistics</h2>
+            <p style={{ margin: 0, color: "var(--muted)" }}>Your Booster Bowl command center is online.</p>
+          </div>
+          <Link href="/picks" className="electric-action">Make Your Picks <span aria-hidden="true">↗</span></Link>
+        </div>
 
-        {/* ACTION BUTTONS */}
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-          <Link href="/booster" className="button">
-            Choose a Booster Club
-          </Link>
-
-          <Link href="/picks" className="button">
-            Make Picks
-          </Link>
-
-          <Link href="/leaderboard" className="button">
-            Leaderboard
-          </Link>
-
-          <a href="#how-it-works" className="button">
-            How it Works
-          </a>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginTop: 24 }}>
+          <StatCard label="PICK BOARDS" value="LIVE" accent="" />
+          <StatCard label="WEEKLY GAMES" value="OPEN" accent="electric-card-violet" />
+          <StatCard label="BOOSTER STATUS" value={selected ? "READY" : "START"} accent="electric-card-lime" />
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" className="card" style={{ marginTop: 18 }}>
-        <h2 style={{ marginTop: 0 }}>How it Works</h2>
-        <ol style={{ lineHeight: 1.7 }}>
-          <li>
-            <strong>Choose your school / booster</strong> — rep your program.
-          </li>
-          <li>
-            <strong>Make your weekly picks</strong> — lock them in before kickoff.
-          </li>
-          <li>
-            <strong>Climb the leaderboard</strong> — and help fund the team.
-          </li>
-        </ol>
-      </section>
-
-      {/* FEATURE CARDS */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 16,
-          marginTop: 18,
-        }}
-      >
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>This Week’s Games</h3>
-          <p style={{ opacity: 0.85 }}>
-            Weekly matchups you can pick in seconds.
-          </p>
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 18 }}>
+        <div className="electric-card" style={{ padding: 20 }}>
+          <p className="kicker">01 / REPRESENT</p>
+          <h2 style={{ margin: "8px 0" }}>Choose Your Booster</h2>
+          <p style={{ color: "var(--muted)" }}>Select the school program you want to support.</p>
+          <Link href="/booster" className="button">Choose a Booster Club</Link>
         </div>
-
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
-          <p style={{ opacity: 0.85 }}>
-            Team Stat Book–style rankings, accuracy, and momentum.
-          </p>
+        <div className="electric-card electric-card-violet" style={{ padding: 20 }}>
+          <p className="kicker" style={{ color: "var(--violet)" }}>02 / COMPETE</p>
+          <h2 style={{ margin: "8px 0" }}>Make Weekly Picks</h2>
+          <p style={{ color: "var(--muted)" }}>Lock in your predictions before kickoff.</p>
+          <Link href="/picks" className="button secondary">Enter Pick Board</Link>
         </div>
-
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Support Booster Clubs</h3>
-          <p style={{ opacity: 0.85 }}>
-            Rally alumni, families, and fans around your program.
-          </p>
+        <div className="electric-card electric-card-lime" style={{ padding: 20 }}>
+          <p className="kicker" style={{ color: "var(--lime)" }}>03 / CLIMB</p>
+          <h2 style={{ margin: "8px 0" }}>Track Your Rank</h2>
+          <p style={{ color: "var(--muted)" }}>See accuracy, momentum, and leaderboard movement.</p>
+          <Link href="/leaderboard" className="button secondary">View Leaderboard</Link>
         </div>
       </section>
 
-      <footer style={{ marginTop: 24, opacity: 0.75, fontSize: 14 }}>
+      {selected ? (
+        <section className="electric-card scan-panel" style={{ marginTop: 18, padding: 18 }}>
+          <p className="kicker">ACTIVE SUPPORT</p>
+          <p style={{ margin: "8px 0 0" }}>Supporting <b style={{ color: "var(--cyan)" }}>{selected.name}</b> ({selected.school}).</p>
+        </section>
+      ) : null}
+
+      <footer style={{ marginTop: 24, opacity: .75, fontSize: 14 }}>
         Built for schools, families, and community pride.
       </footer>
     </main>
+  );
+}
+
+function StatCard({ label, value, accent }) {
+  return (
+    <div className={`electric-card ${accent}`} style={{ padding: 18 }}>
+      <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 800, letterSpacing: ".16em" }}>{label}</p>
+      <div className="neon-number" style={{ marginTop: 18 }}>{value}</div>
+      <div style={{ marginTop: 16, height: 3, background: "rgba(255,255,255,.1)", overflow: "hidden" }}>
+        <div style={{ height: "100%", width: value === "READY" ? "88%" : "72%", background: "var(--cyan)", boxShadow: "0 0 12px var(--cyan)" }} />
+      </div>
+    </div>
   );
 }
