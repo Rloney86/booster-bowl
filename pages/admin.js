@@ -20,7 +20,7 @@ export default function AdminScores() {
   async function loadGames(week = selectedWeek) {
     setLoading(true);
     setMessage("");
-    const { data, error } = await supabase.from("games").select("id,away_team,home_team,away_score,home_score,winner,is_final,kickoff_at,season,week").eq("season", SEASON).eq("week", week).order("id");
+    const { data, error } = await supabase.from("games").select("id,away_team,home_team,away_score,home_score,winner,is_final,kickoff_at,season,week,sync_status").eq("season", SEASON).eq("week", week).or("sync_status.is.null,sync_status.eq.scheduled").order("id");
     if (error) { setMessage("Could not load games: " + error.message); setLoading(false); return; }
     setGames(data || []);
     const next = {};
