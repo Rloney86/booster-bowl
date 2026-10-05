@@ -44,7 +44,8 @@ export default function MyPicks() {
       .from("games")
       .select("id,away_team,home_team,winner")
       .eq("season", Number(SEASON))
-      .eq("week", week);
+      .eq("week", week)
+      .or("sync_status.is.null,sync_status.eq.scheduled");
 
     if (gamesError) {
       setMessage("Could not load this week's games: " + gamesError.message);
