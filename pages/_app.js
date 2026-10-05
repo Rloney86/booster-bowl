@@ -11,6 +11,7 @@ export default function MyApp({ Component, pageProps }) {
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
   const [message, setMessage] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [user, setUser] = useState(null);
@@ -76,19 +77,43 @@ export default function MyApp({ Component, pageProps }) {
         setCooldown(60);
         setMessage("Too many sign-in emails were requested. Use the newest email already sent, or wait about an hour and try again.");
       } else {
-        setMessage("Could not send the sign-in link: " + error.message);
+        setMessage("Could not send the verification code: " + error.message);
       }
       return;
     }
     setCooldown(60);
-    setAuthStep("link-sent");
-    setMessage("Open the newest Booster Bowl email and tap Sign in.");
+    setAuthStep("otp-sent");
+    setMessage("Enter the six-digit code from the newest Booster Bowl email.");
+  }
+
+  async function verifyCode() {
+    const token = otp.trim();
+    if (!/^\\d{6}$/.test(token)) {
+      setMessage("Enter the six-digit verification code from your email.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token,
+      type: "email",
+    });
+    setBusy(false);
+    if (error) {
+      setMessage("That code could not be verified: " + error.message);
+      return;
+    }
+    setOtp("");
+    setAuthStep("signed-in");
+    setMessage("You’re signed in.");
   }
 
   function changeEmail() {
     if (busy) return;
+    setOtp("");
     setAuthStep("email");
-    setMessage("Update your email, then request a new sign-in link.");
+    setMessage("Update your email, then request a new verification code.");
   }
 
   function updateName() {
@@ -222,18 +247,26 @@ export default function MyApp({ Component, pageProps }) {
 
                   {!user && authStep === "email" ? (
                     <button className="button" onClick={sendSignInLink} disabled={busy || cooldown > 0}>
-                      {busy ? "Sending..." : cooldown > 0 ? `Try Again in ${cooldown}s` : "Email Me a Sign-In Link"}
+                      {busy ? "Sending..." : cooldown > 0 ? `Try Again in ${cooldown}s` : "Email Me a Sign-In Code"}
                     </button>
                   ) : null}
 
-                  {!user && authStep === "link-sent" ? (
+                  {!user && authStep === "otp-sent" ? (
                     <>
-                      <div style={{ padding: 10, border: "1px solid #dbe3ef", borderRadius: 12 }}>
-                        Check your email and tap <b>Sign in</b>.
-                      </div>
+                      <input
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        value={otp}
+                        onChange={(event) => setOtp(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+                        placeholder="6-digit verification code"
+                        aria-label="Verification code"
+                      />
+                      <button className="button" onClick={verifyCode} disabled={busy || otp.length !== 6}>
+                        {busy ? "Verifying..." : "Verify Code"}
+                      </button>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button className="button" onClick={sendSignInLink} disabled={busy || cooldown > 0}>
-                          {busy ? "Sending..." : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend Link"}
+                          {busy ? "Sending..." : cooldown > 0 ? `Resend in ${cooldown}s` : "Resend Code"}
                         </button>
                         <button className="button secondary" onClick={changeEmail} disabled={busy}>
                           Change Email
