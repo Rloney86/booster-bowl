@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 const TEST_CODEWORD = "BOWLTEST";
-const TEST_CASHAPP = process.env.NEXT_PUBLIC_TEST_CASHAPP || "$BoosterBowlTest";
+const TEST_CASHAPP = "$boosterbowl";
 
 export default function TestGame() {
   const [codeword, setCodeword] = useState("");
