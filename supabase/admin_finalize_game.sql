@@ -270,7 +270,7 @@ begin
 
   select count(*), count(distinct (item->>'game_id')::bigint)
   into v_count, v_distinct_count
-  from jsonb_array_elements(p_results) as item;
+  from jsonb_array_elements(p_results) as items(item);
 
   if v_count <> v_distinct_count then
     raise exception 'The batch contains a duplicate game';
@@ -278,7 +278,7 @@ begin
 
   for v_item in
     select item
-    from jsonb_array_elements(p_results) as item
+    from jsonb_array_elements(p_results) as items(item)
     order by (item->>'game_id')::bigint
   loop
     v_game_id := (v_item->>'game_id')::bigint;
