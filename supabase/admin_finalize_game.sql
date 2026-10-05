@@ -152,3 +152,14 @@ $$;
 revoke all on function public.admin_reopen_game(bigint, integer, integer) from public;
 revoke all on function public.admin_reopen_game(bigint, integer, integer) from anon;
 grant execute on function public.admin_reopen_game(bigint, integer, integer) to authenticated;
+
+
+-- Verified schedule correction: this imported matchup did not exist.
+-- Quarantine rather than delete so any historical references remain auditable.
+update public.games
+set sync_status = 'quarantined',
+    is_featured = false
+where id = 36
+  and lower(trim(away_team)) = 'landstown'
+  and lower(trim(home_team)) = 'huguenot'
+  and is_final = false;
