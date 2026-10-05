@@ -88,7 +88,7 @@ export default function MyApp({ Component, pageProps }) {
 
   async function verifyCode() {
     const token = otp.trim();
-    if (!/^\\d{6}$/.test(token)) {
+    if (!/^\d{6}$/.test(token)) {
       setMessage("Enter the six-digit verification code from your email.");
       return;
     }
@@ -257,7 +257,7 @@ export default function MyApp({ Component, pageProps }) {
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         value={otp}
-                        onChange={(event) => setOtp(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+                        onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder="6-digit verification code"
                         aria-label="Verification code"
                       />
