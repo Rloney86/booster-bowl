@@ -223,3 +223,108 @@ $$;
 revoke all on function public.admin_quarantine_game(bigint, integer, integer) from public;
 revoke all on function public.admin_quarantine_game(bigint, integer, integer) from anon;
 grant execute on function public.admin_quarantine_game(bigint, integer, integer) to authenticated;
+
+
+-- Atomically finalize a reviewed batch of results. Any invalid item aborts the
+-- entire batch so the admin never ends up with a partially saved scoreboard.
+create or replace function public.admin_finalize_games_bulk(
+  p_season integer,
+  p_week integer,
+  p_results jsonb
+)
+returns setof public.games
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_email text;
+  v_item jsonb;
+  v_game public.games%rowtype;
+  v_game_id bigint;
+  v_away_score integer;
+  v_home_score integer;
+  v_count integer;
+  v_distinct_count integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select email into v_email
+  from auth.users
+  where id = auth.uid();
+
+  if lower(coalesce(v_email, '')) <> 'mr.rayloney@gmail.com' then
+    raise exception 'Admin access required';
+  end if;
+
+  if p_results is null or jsonb_typeof(p_results) <> 'array' then
+    raise exception 'Results must be a JSON array';
+  end if;
+
+  v_count := jsonb_array_length(p_results);
+  if v_count < 1 or v_count > 200 then
+    raise exception 'A bulk result batch must contain between 1 and 200 games';
+  end if;
+
+  select count(*), count(distinct (item->>'game_id')::bigint)
+  into v_count, v_distinct_count
+  from jsonb_array_elements(p_results) as item;
+
+  if v_count <> v_distinct_count then
+    raise exception 'The batch contains a duplicate game';
+  end if;
+
+  for v_item in
+    select item
+    from jsonb_array_elements(p_results) as item
+    order by (item->>'game_id')::bigint
+  loop
+    v_game_id := (v_item->>'game_id')::bigint;
+    v_away_score := (v_item->>'away_score')::integer;
+    v_home_score := (v_item->>'home_score')::integer;
+
+    if v_away_score < 0 or v_home_score < 0 then
+      raise exception 'Scores must be whole numbers of 0 or greater';
+    end if;
+
+    if v_away_score = v_home_score then
+      raise exception 'Tied scores cannot be finalized';
+    end if;
+
+    select * into v_game
+    from public.games
+    where id = v_game_id
+      and season = p_season
+      and week = p_week
+      and coalesce(sync_status, 'scheduled') = 'scheduled'
+    for update;
+
+    if not found then
+      raise exception 'Game % is unavailable for the requested season and week', v_game_id;
+    end if;
+
+    if v_game.is_final then
+      raise exception 'Game % is already final', v_game_id;
+    end if;
+
+    update public.games
+    set away_score = v_away_score,
+        home_score = v_home_score,
+        is_final = true
+    where id = v_game_id
+      and season = p_season
+      and week = p_week
+    returning * into v_game;
+
+    return next v_game;
+  end loop;
+
+  return;
+end;
+$$;
+
+revoke all on function public.admin_finalize_games_bulk(integer, integer, jsonb) from public;
+revoke all on function public.admin_finalize_games_bulk(integer, integer, jsonb) from anon;
+grant execute on function public.admin_finalize_games_bulk(integer, integer, jsonb) to authenticated;
