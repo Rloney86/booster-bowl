@@ -242,7 +242,7 @@ export default function TestGame() {
                 rel="noreferrer"
                 style={{ display: "inline-block", textDecoration: "none" }}
               >
-                💵 Place Bets Here! ({TEST_CASHAPP})
+                💚 Support Your Pick! ({TEST_CASHAPP})
               </a>
             </div>
           </div>
