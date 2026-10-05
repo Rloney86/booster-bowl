@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-const TEST_CODEWORD = "BOWLTEST";
+const TEST_CODEWORD = "TURKEY BOWL";
 const TEST_CASHAPP = "$boosterbowl";
 
 export default function TestGame() {
