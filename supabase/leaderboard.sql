@@ -109,3 +109,78 @@ grant execute on function public.get_booster_leaderboard() to authenticated;
 
 revoke all on function public.get_booster_leaderboard_week(integer, integer) from public;
 grant execute on function public.get_booster_leaderboard_week(integer, integer) to authenticated;
+
+
+-- Individual player standings. This intentionally exposes only public-facing
+-- display names and scoring totals. Emails, auth user IDs, and individual pick
+-- selections remain private.
+create or replace function public.get_player_leaderboard(
+  p_season integer,
+  p_week integer default null
+)
+returns table (
+  ranking bigint,
+  display_name text,
+  booster_name text,
+  completed_picks bigint,
+  correct_picks bigint,
+  accuracy_percent integer,
+  is_current_user boolean
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with scored as (
+    select
+      p.id,
+      coalesce(nullif(trim(p.display_name), ''), 'Player') as display_name,
+      coalesce(nullif(trim(p.booster_name), ''), 'Independent') as booster_name,
+      (p.user_id = auth.uid()) as is_current_user,
+      count(pk.id) filter (
+        where g.is_final = true
+          and g.winner is not null
+      )::bigint as completed_picks,
+      count(pk.id) filter (
+        where g.is_final = true
+          and g.winner is not null
+          and pk.selected_team = g.winner
+      )::bigint as correct_picks
+    from public.players p
+    join public.picks pk on pk.player_id = p.id
+    join public.games g on g.id = pk.game_id
+    where g.season = p_season
+      and (p_week is null or g.week = p_week)
+    group by p.id, p.display_name, p.booster_name, p.user_id
+  ),
+  calculated as (
+    select
+      display_name,
+      booster_name,
+      completed_picks,
+      correct_picks,
+      case
+        when completed_picks = 0 then 0
+        else round(100.0 * correct_picks / completed_picks)::integer
+      end as accuracy_percent,
+      is_current_user
+    from scored
+    where completed_picks > 0
+  )
+  select
+    dense_rank() over (
+      order by correct_picks desc, accuracy_percent desc, completed_picks desc
+    )::bigint as ranking,
+    display_name,
+    booster_name,
+    completed_picks,
+    correct_picks,
+    accuracy_percent,
+    is_current_user
+  from calculated
+  order by ranking, display_name;
+$$;
+
+revoke all on function public.get_player_leaderboard(integer, integer) from public;
+grant execute on function public.get_player_leaderboard(integer, integer) to authenticated;
