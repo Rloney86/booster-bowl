@@ -15,6 +15,7 @@ export default function AdminScores() {
   const [drafts, setDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
+  const [savingAction, setSavingAction] = useState("");
   const [message, setMessage] = useState("");
 
   async function loadGames(week = selectedWeek) {
@@ -75,7 +76,7 @@ export default function AdminScores() {
     if (awayScore === homeScore) return setMessage("A final football game needs a winner; tied scores cannot be finalized.");
     const winner = awayScore > homeScore ? game.away_team : game.home_team;
     if (!window.confirm(`Finalize ${game.away_team} ${awayScore} — ${game.home_team} ${homeScore}? Winner: ${winner}. This immediately affects leaderboard scoring.`)) return;
-    setSavingId(game.id); setMessage("");
+    setSavingId(game.id); setSavingAction("finalize"); setMessage("");
     const { data, error } = await supabase.rpc("admin_finalize_game", {
       p_game_id: game.id,
       p_season: SEASON,
@@ -83,7 +84,7 @@ export default function AdminScores() {
       p_away_score: awayScore,
       p_home_score: homeScore,
     });
-    setSavingId(null);
+    setSavingId(null); setSavingAction("");
     if (error) return setMessage("Score was NOT saved: " + error.message);
     if (!data || data.is_final !== true || Number(data.id) !== Number(game.id)) return setMessage("Score was NOT confirmed by the database. Refresh and verify before continuing.");
     setMessage(`✅ Final saved: ${winner} won ${Math.max(awayScore, homeScore)}–${Math.min(awayScore, homeScore)}. Leaderboard scoring will use this result.`);
@@ -94,16 +95,35 @@ export default function AdminScores() {
     if (!user || !authorized) return setMessage("Authorized admin access is required.");
     if (!window.confirm(`Reopen ${game.away_team} at ${game.home_team}? The current score and winner will be cleared so you can enter the corrected result.`)) return;
     setSavingId(game.id);
+    setSavingAction("reopen");
     setMessage("");
     const { data, error } = await supabase.rpc("admin_reopen_game", {
       p_game_id: game.id,
       p_season: SEASON,
       p_week: selectedWeek,
     });
-    setSavingId(null);
+    setSavingId(null); setSavingAction("");
     if (error) return setMessage("Game was NOT reopened: " + error.message);
     if (!data || data.is_final !== false || Number(data.id) !== Number(game.id)) return setMessage("The database did not confirm the reopen. Refresh and verify before continuing.");
     setMessage(`✅ Reopened ${game.away_team} at ${game.home_team}. Enter the corrected scores and finalize it again.`);
+    await loadGames(selectedWeek);
+  }
+
+  async function hideInvalid(game) {
+    if (!user || !authorized) return setMessage("Authorized admin access is required.");
+    if (!window.confirm(`Hide ${game.away_team} at ${game.home_team} as an invalid matchup? Use this only when the schedule confirms the game does not exist. It will disappear from pick boards and scoring but remain stored for audit safety.`)) return;
+    setSavingId(game.id);
+    setSavingAction("quarantine");
+    setMessage("");
+    const { data, error } = await supabase.rpc("admin_quarantine_game", {
+      p_game_id: game.id,
+      p_season: SEASON,
+      p_week: selectedWeek,
+    });
+    setSavingId(null); setSavingAction("");
+    if (error) return setMessage("Game was NOT hidden: " + error.message);
+    if (!data || data.sync_status !== "quarantined" || Number(data.id) !== Number(game.id)) return setMessage("The database did not confirm the quarantine. Refresh and verify before continuing.");
+    setMessage(`✅ Hidden invalid matchup: ${game.away_team} at ${game.home_team}.`);
     await loadGames(selectedWeek);
   }
 
@@ -136,7 +156,7 @@ export default function AdminScores() {
         <label><b>{g.away_team}</b></label><input inputMode="numeric" value={drafts[g.id]?.away ?? ""} onChange={(e) => setScore(g.id, "away", e.target.value)} placeholder="Score" style={{ padding: 12, width: "100%", boxSizing: "border-box" }}/>
         <label><b>{g.home_team}</b></label><input inputMode="numeric" value={drafts[g.id]?.home ?? ""} onChange={(e) => setScore(g.id, "home", e.target.value)} placeholder="Score" style={{ padding: 12, width: "100%", boxSizing: "border-box" }}/>
       </div>}
-      <div style={{ marginTop: 14 }}>{g.is_final ? <button className="button" disabled={savingId === g.id} onClick={() => reopen(g)}>Correct / Reopen</button> : <button className="button" disabled={savingId === g.id} onClick={() => saveFinal(g)}>{savingId === g.id ? "Saving..." : "Finalize Result"}</button>}</div>
+      <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>{g.is_final ? <button className="button" disabled={savingId === g.id} onClick={() => reopen(g)}>{savingId === g.id && savingAction === "reopen" ? "Reopening..." : "Correct / Reopen"}</button> : <><button className="button" disabled={savingId === g.id} onClick={() => saveFinal(g)}>{savingId === g.id && savingAction === "finalize" ? "Saving..." : "Finalize Result"}</button><button className="button secondary" disabled={savingId === g.id} onClick={() => hideInvalid(g)}>{savingId === g.id && savingAction === "quarantine" ? "Hiding..." : "Hide Invalid Game"}</button></>}</div>
     </section>)}
   </main>;
 }
