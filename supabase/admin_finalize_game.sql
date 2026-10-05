@@ -163,3 +163,63 @@ where id = 36
   and lower(trim(away_team)) = 'landstown'
   and lower(trim(home_team)) = 'huguenot'
   and is_final = false;
+
+
+-- Allow the authorized score admin to quarantine a non-final invalid matchup
+-- without deleting the game or any pick references.
+create or replace function public.admin_quarantine_game(
+  p_game_id bigint,
+  p_season integer,
+  p_week integer
+)
+returns public.games
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_game public.games%rowtype;
+  v_email text;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select email into v_email
+  from auth.users
+  where id = auth.uid();
+
+  if lower(coalesce(v_email, '')) <> 'mr.rayloney@gmail.com' then
+    raise exception 'Admin access required';
+  end if;
+
+  select * into v_game
+  from public.games
+  where id = p_game_id
+    and season = p_season
+    and week = p_week
+  for update;
+
+  if not found then
+    raise exception 'Game not found for the requested season and week';
+  end if;
+
+  if v_game.is_final then
+    raise exception 'Final games must be reopened before they can be quarantined';
+  end if;
+
+  update public.games
+  set sync_status = 'quarantined',
+      is_featured = false
+  where id = p_game_id
+    and season = p_season
+    and week = p_week
+  returning * into v_game;
+
+  return v_game;
+end;
+$$;
+
+revoke all on function public.admin_quarantine_game(bigint, integer, integer) from public;
+revoke all on function public.admin_quarantine_game(bigint, integer, integer) from anon;
+grant execute on function public.admin_quarantine_game(bigint, integer, integer) to authenticated;
