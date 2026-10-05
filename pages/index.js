@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import TacticalHudPanel from "../components/TacticalHudPanel";
 
 const STORAGE_KEY = "bb_selected_booster";
 
@@ -23,66 +24,72 @@ export default function Home() {
         </p>
       </section>
 
-      <section className="electric-card scan-panel" style={{ padding: 22 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          <div>
-            <p className="kicker">PERFORMANCE CORE</p>
-            <h2 style={{ margin: "8px 0 4px" }}>Dashboard Statistics</h2>
-            <p style={{ margin: 0, color: "var(--muted)" }}>Your Booster Bowl command center is online.</p>
-          </div>
-          <Link href="/picks" className="electric-action">Make Your Picks <span aria-hidden="true">↗</span></Link>
-        </div>
+      <div className="home-hud-layout">
+        <TacticalHudPanel selectedBooster={selected} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginTop: 24 }}>
-          <StatCard label="PICK BOARDS" value="LIVE" accent="" />
-          <StatCard label="WEEKLY GAMES" value="OPEN" accent="electric-card-violet" />
-          <StatCard label="BOOSTER STATUS" value={selected ? "READY" : "START"} accent="electric-card-lime" />
-        </div>
-      </section>
+        <div className="home-main-stack">
+          <section className="electric-card scan-panel dashboard-panel hud-grid-card">
+            <div className="home-dashboard-header">
+              <div>
+                <p className="kicker">PERFORMANCE CORE</p>
+                <h2>Dashboard Statistics</h2>
+                <p className="dashboard-subtext">Your Booster Bowl command center is online.</p>
+              </div>
+              <Link href="/picks" className="electric-action">Make Your Picks <span aria-hidden="true">↗</span></Link>
+            </div>
 
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 18 }}>
-        <div className="electric-card" style={{ padding: 20 }}>
-          <p className="kicker">01 / REPRESENT</p>
-          <h2 style={{ margin: "8px 0" }}>Choose Your Booster</h2>
-          <p style={{ color: "var(--muted)" }}>Select the school program you want to support.</p>
-          <Link href="/booster" className="button">Choose a Booster Club</Link>
-        </div>
-        <div className="electric-card electric-card-violet" style={{ padding: 20 }}>
-          <p className="kicker" style={{ color: "var(--violet)" }}>02 / COMPETE</p>
-          <h2 style={{ margin: "8px 0" }}>Make Weekly Picks</h2>
-          <p style={{ color: "var(--muted)" }}>Lock in your predictions before kickoff.</p>
-          <Link href="/picks" className="button secondary">Enter Pick Board</Link>
-        </div>
-        <div className="electric-card electric-card-lime" style={{ padding: 20 }}>
-          <p className="kicker" style={{ color: "var(--lime)" }}>03 / CLIMB</p>
-          <h2 style={{ margin: "8px 0" }}>Track Your Rank</h2>
-          <p style={{ color: "var(--muted)" }}>See accuracy, momentum, and leaderboard movement.</p>
-          <Link href="/leaderboard" className="button secondary">View Leaderboard</Link>
-        </div>
-      </section>
+            <div className="dashboard-stat-grid">
+              <StatCard label="PICK BOARDS" value="LIVE" />
+              <StatCard label="WEEKLY GAMES" value="OPEN" accent="electric-card-violet" />
+              <StatCard label="BOOSTER STATUS" value={selected ? "READY" : "START"} accent="electric-card-lime" ready={Boolean(selected)} />
+            </div>
+          </section>
 
-      {selected ? (
-        <section className="electric-card scan-panel" style={{ marginTop: 18, padding: 18 }}>
-          <p className="kicker">ACTIVE SUPPORT</p>
-          <p style={{ margin: "8px 0 0" }}>Supporting <b style={{ color: "var(--cyan)" }}>{selected.name}</b> ({selected.school}).</p>
-        </section>
-      ) : null}
+          <section className="home-feature-grid">
+            <article className="electric-card home-feature-card">
+              <p className="kicker">01 / REPRESENT</p>
+              <h2>Choose Your Booster</h2>
+              <p>Select the school program you want to support.</p>
+              <Link href="/booster" className="button">Choose a Booster Club</Link>
+            </article>
 
-      <footer style={{ marginTop: 24, opacity: .75, fontSize: 14 }}>
-        Built for schools, families, and community pride.
-      </footer>
+            <article className="electric-card electric-card-violet home-feature-card">
+              <p className="kicker kicker-violet">02 / COMPETE</p>
+              <h2>Make Weekly Picks</h2>
+              <p>Lock in your predictions before kickoff.</p>
+              <Link href="/picks" className="button secondary">Enter Pick Board</Link>
+            </article>
+
+            <article className="electric-card electric-card-lime home-feature-card">
+              <p className="kicker kicker-lime">03 / CLIMB</p>
+              <h2>Track Your Rank</h2>
+              <p>See accuracy, momentum, and leaderboard movement.</p>
+              <Link href="/leaderboard" className="button secondary">View Leaderboard</Link>
+            </article>
+          </section>
+
+          {selected ? (
+            <section className="electric-card scan-panel active-support-card">
+              <p className="kicker">ACTIVE SUPPORT</p>
+              <p>Supporting <strong>{selected.name}</strong> ({selected.school}).</p>
+            </section>
+          ) : null}
+
+          <footer className="home-footer">
+            Built for schools, families, and community pride.
+          </footer>
+        </div>
+      </div>
     </main>
   );
 }
 
-function StatCard({ label, value, accent }) {
+function StatCard({ label, value, accent = "", ready = false }) {
   return (
-    <div className={`electric-card ${accent}`} style={{ padding: 18 }}>
-      <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, fontWeight: 800, letterSpacing: ".16em" }}>{label}</p>
-      <div className="neon-number" style={{ marginTop: 18 }}>{value}</div>
-      <div style={{ marginTop: 16, height: 3, background: "rgba(255,255,255,.1)", overflow: "hidden" }}>
-        <div style={{ height: "100%", width: value === "READY" ? "88%" : "72%", background: "var(--cyan)", boxShadow: "0 0 12px var(--cyan)" }} />
-      </div>
-    </div>
+    <article className={`electric-card stat-card ${accent}`}>
+      <p className="stat-label">{label}</p>
+      <div className="neon-number stat-value">{value}</div>
+      <div className="stat-track"><span className={ready ? "stat-ready" : ""} /></div>
+    </article>
   );
 }
