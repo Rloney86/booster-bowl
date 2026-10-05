@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const PLAYER_KEY = "bb_player_profile";
+const RESUME_SUBMISSION_KEY = "bb_resume_submission";
 
 export default function MyApp({ Component, pageProps }) {
   const [accountOpen, setAccountOpen] = useState(false);
@@ -34,6 +35,9 @@ export default function MyApp({ Component, pageProps }) {
       if (session?.user) {
         setEmail(session.user.email || "");
         setAuthStep("signed-in");
+        try {
+          if (sessionStorage.getItem(RESUME_SUBMISSION_KEY) === "1") setAccountOpen(false);
+        } catch {}
       }
     });
     return () => listener.subscription.unsubscribe();
