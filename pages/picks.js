@@ -8,6 +8,7 @@ const STORAGE_KEY = "bb_selected_booster";
 const PLAYER_KEY = "bb_player_profile";
 const PICKS_KEY = "bb_weekly_picks";
 const BOARD_KEY = "bb_pick_board";
+const RESUME_SUBMISSION_KEY = "bb_resume_submission";
 const ICONS = { Featured: "⭐", District: "📍", Classification: "🏆", School: "🏫" };
 const slug = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const uniq = (rows) => Array.from(new Map(rows.map((g) => [g.id, g])).values());
@@ -148,6 +149,7 @@ export default function Picks() {
   async function submit() {
     if (submitted || busy) return; if (!picksOpen) return setToast("Picks are locked because this week’s deadline has passed."); if (!user) {
       setToast("Sign in to submit your picks. Your selections will stay saved.");
+      try { sessionStorage.setItem(RESUME_SUBMISSION_KEY, "1"); } catch {}
       window.dispatchEvent(new CustomEvent("booster-bowl-open-login"));
       return;
     } if (!playerName.trim()) return setToast("Enter your name before submitting."); if (!selectedBooster) return setToast("Choose a booster club before submitting."); if (!games.length) return setToast("There are no games loaded on this board yet."); if (pickedCount !== games.length) return setToast(`Pick ${games.length - pickedCount} more game(s) to submit.`);
@@ -157,6 +159,18 @@ export default function Picks() {
     if (inserts.length) { const { error: e } = await supabase.from("picks").insert(inserts); if (e) { setBusy(false); return setToast("Could not save your new picks: " + e.message); } } for (const r of updates) { const { error: e } = await supabase.from("picks").update({ selected_team: r.selected_team }).eq("id", saved.get(r.game_id).id).eq("player_id", player.id); if (e) { setBusy(false); return setToast("A changed pick could not be updated: " + e.message); } }
     setBusy(false); setSubmitted(true); setToast(`🏈 ${board.shortLabel} picks saved! You're officially in the Booster Bowl.`);
   }
+
+  useEffect(() => {
+    if (!user?.id || submitted || busy) return;
+    let shouldResume = false;
+    try {
+      shouldResume = sessionStorage.getItem(RESUME_SUBMISSION_KEY) === "1";
+      if (shouldResume) sessionStorage.removeItem(RESUME_SUBMISSION_KEY);
+    } catch {}
+    if (!shouldResume) return;
+    const timer = window.setTimeout(() => submit(), 0);
+    return () => window.clearTimeout(timer);
+  }, [user?.id]);
 
   return <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}><div className="card"><h1 style={{ marginTop: 0 }}>🏈 Choose Your Pick Board</h1><p>Week {activeWeek} — {picksOpen ? "Picks are OPEN" : "Picks are LOCKED"}.</p><p style={{ opacity: .8 }}>{deadlineText}</p>{catalogMessage && <div style={{ marginTop: 12, padding: 12, border: "1px solid #dbe3ef", borderRadius: 12 }}>{catalogMessage}</div>}<div style={{ marginTop: 18 }}><b>1. Choose how you want to pick</b><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>{availableGroups.map((group) => <button key={group} className="button" onClick={() => { setActiveGroup(group); setBoardId(""); setSchoolSearch(""); setToast(""); try { localStorage.removeItem(BOARD_KEY); } catch {} }} disabled={submitted || busy} style={{ opacity: activeGroup === group ? 1 : .58, outline: activeGroup === group ? "2px solid #3b82f6" : "none", padding: "10px 14px" }}>{ICONS[group]} {group}</button>)}</div></div><div style={{ marginTop: 18 }}><b>2. Choose your {activeGroup.toLowerCase()}</b>{activeGroup === "School" && <input value={schoolSearch} onChange={(e) => setSchoolSearch(e.target.value)} placeholder="🔎 Search school name..." style={{ width: "100%", boxSizing: "border-box", marginTop: 10, padding: 13, borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 16 }} />}<select value={visibleBoards.some((b) => b.id === boardId) ? boardId : ""} onChange={(e) => e.target.value && changeBoard(e.target.value)} disabled={submitted || busy} style={{ width: "100%", marginTop: 10, padding: 13, borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 16, background: "white" }}><option value="">Select {activeGroup === "Classification" ? "classification" : activeGroup.toLowerCase()}...</option>{visibleBoards.map((b) => <option key={b.id} value={b.id}>{b.label} — {b.games.length} game{b.games.length === 1 ? "" : "s"}</option>)}</select>{activeGroup === "School" && schoolSearch && !visibleBoards.length && <p style={{ opacity: .7 }}>No school matches “{schoolSearch}”.</p>}</div>{board ? <div style={{ marginTop: 18, padding: 14, border: "1px solid #dbe3ef", borderRadius: 14 }}><div style={{ fontSize: 13, opacity: .7 }}>CURRENT PICK BOARD</div><h2 style={{ margin: "5px 0" }}>{ICONS[board.group]} {board.label}</h2><div style={{ opacity: .8 }}>{board.description}</div><b>{games.length ? `${games.length} matchup${games.length === 1 ? "" : "s"} this week` : `No Week ${activeWeek} matchup`}</b></div> : <div style={{ marginTop: 18, padding: 14, border: "1px dashed #cbd5e1", borderRadius: 14, opacity: .8 }}><b>Choose a {activeGroup === "Classification" ? "classification" : activeGroup.toLowerCase()} above to load this week&apos;s games.</b></div>}{selectedBooster ? <p>Supporting: <b>{selectedBooster.name}</b> ({selectedBooster.school})</p> : <p><a href="/boosters">Choose a booster club first</a>.</p>}<div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}><div>Picks: <b>{pickedCount}</b> / {games.length}</div><button className="button" onClick={submit} disabled={!picksOpen || submitted || busy || !games.length}>{submitted ? "Submitted ✅" : busy ? "Saving..." : board ? `Submit ${board.shortLabel} Picks` : "Choose a Pick Board"}</button><button className="button" onClick={clearAll} disabled={submitted || busy}>Clear Board</button></div>{toast && <div style={{ marginTop: 12, padding: 12, border: "1px solid #2a3b57", borderRadius: 12 }}>{toast}</div>}</div><div style={{ height: 18 }} />{games.map((g, i) => { const picked = picks[g.id]; return <div key={g.id} className="card"><div style={{ fontSize: 13, fontWeight: 700 }}>{board.group.toUpperCase()} • GAME {i + 1} OF {games.length}</div><div style={{ opacity: .8 }}>Kickoff: {g.kickoff}</div><h2>{g.away} <span style={{ opacity: .6 }}>at</span> {g.home}</h2><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><PickButton label={`Pick ${g.away}`} active={picked === "away"} onClick={() => choose(g.id, "away")} disabled={!picksOpen || submitted} /><PickButton label={`Pick ${g.home}`} active={picked === "home"} onClick={() => choose(g.id, "home")} disabled={!picksOpen || submitted} /></div><p>Your pick: <b>{picked ? (picked === "home" ? g.home : g.away) : "—"}</b></p></div>; })}</div>;
 }
