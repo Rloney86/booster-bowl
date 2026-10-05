@@ -71,3 +71,84 @@ $$;
 revoke all on function public.admin_finalize_game(bigint, integer, integer, integer, integer) from public;
 revoke all on function public.admin_finalize_game(bigint, integer, integer, integer, integer) from anon;
 grant execute on function public.admin_finalize_game(bigint, integer, integer, integer, integer) to authenticated;
+
+
+-- Let the admin page verify access without exposing account details.
+create or replace function public.admin_is_authorized()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from auth.users
+    where id = auth.uid()
+      and lower(coalesce(email, '')) = 'mr.rayloney@gmail.com'
+  );
+$$;
+
+revoke all on function public.admin_is_authorized() from public;
+revoke all on function public.admin_is_authorized() from anon;
+grant execute on function public.admin_is_authorized() to authenticated;
+
+-- Reopen a finalized game so an incorrect score can be corrected safely.
+-- Clearing the scores and is_final also clears winner through games_set_winner.
+create or replace function public.admin_reopen_game(
+  p_game_id bigint,
+  p_season integer,
+  p_week integer
+)
+returns public.games
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_game public.games%rowtype;
+  v_email text;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select email into v_email
+  from auth.users
+  where id = auth.uid();
+
+  if lower(coalesce(v_email, '')) <> 'mr.rayloney@gmail.com' then
+    raise exception 'Admin access required';
+  end if;
+
+  select * into v_game
+  from public.games
+  where id = p_game_id
+    and season = p_season
+    and week = p_week
+  for update;
+
+  if not found then
+    raise exception 'Game not found for the requested season and week';
+  end if;
+
+  if not v_game.is_final then
+    raise exception 'Game is not final';
+  end if;
+
+  update public.games
+  set away_score = null,
+      home_score = null,
+      is_final = false
+  where id = p_game_id
+    and season = p_season
+    and week = p_week
+  returning * into v_game;
+
+  return v_game;
+end;
+$$;
+
+revoke all on function public.admin_reopen_game(bigint, integer, integer) from public;
+revoke all on function public.admin_reopen_game(bigint, integer, integer) from anon;
+grant execute on function public.admin_reopen_game(bigint, integer, integer) to authenticated;
