@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 
 const PLAYER_KEY = "bb_player_profile";
 const RESUME_SUBMISSION_KEY = "bb_resume_submission";
+const ADMIN_EMAIL = "mr.rayloney@gmail.com";
 
 export default function MyApp({ Component, pageProps }) {
   const [accountOpen, setAccountOpen] = useState(false);
@@ -292,6 +293,7 @@ export default function MyApp({ Component, pageProps }) {
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <button className="button" onClick={updateName} disabled={busy}>Save Name</button>
                       <Link href="/my-picks" className="button secondary" onClick={() => setAccountOpen(false)}>My Picks</Link>
+                      {user.email?.toLowerCase() === ADMIN_EMAIL ? <Link href="/admin" className="button secondary" onClick={() => setAccountOpen(false)}>Score Admin</Link> : null}
                       <button className="button secondary" onClick={signOut} disabled={busy}>
                         {busy ? "Signing out..." : "Sign Out"}
                       </button>
