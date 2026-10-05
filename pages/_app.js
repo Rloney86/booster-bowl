@@ -156,9 +156,9 @@ export default function MyApp({ Component, pageProps }) {
     <>
       <header
         style={{
-          background: "#000",
+          background: "rgba(5, 5, 8, .88)",
           padding: "14px 20px",
-          borderBottom: "2px solid #00f5c4",
+          borderBottom: "1px solid rgba(0, 240, 255, .6)",
           position: "relative",
           zIndex: 50,
         }}
@@ -191,8 +191,8 @@ export default function MyApp({ Component, pageProps }) {
                 height: 42,
                 padding: "0 12px",
                 borderRadius: 999,
-                border: user ? "2px solid #00f5c4" : "1px solid #607080",
-                background: user ? "#10382f" : "#17202a",
+                border: user ? "2px solid #39ff14" : "1px solid rgba(0, 240, 255, .5)",
+                background: user ? "rgba(57, 255, 20, .16)" : "rgba(16, 20, 34, .9)",
                 color: "#fff",
                 cursor: "pointer",
                 fontSize: 15,
@@ -217,7 +217,7 @@ export default function MyApp({ Component, pageProps }) {
                     position: "fixed",
                     inset: 0,
                     border: 0,
-                    background: "rgba(0, 0, 0, 0.55)",
+                    background: "rgba(0, 0, 0, 0.72)",
                     zIndex: 99,
                   }}
                 />
@@ -234,7 +234,7 @@ export default function MyApp({ Component, pageProps }) {
                   width: "min(380px, calc(100vw - 32px))",
                   maxHeight: "calc(100vh - 32px)",
                   overflowY: "auto",
-                  color: "#0b1220",
+                  color: "#f5fbff",
                   zIndex: 100,
                 }}
               >
