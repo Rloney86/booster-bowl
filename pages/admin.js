@@ -186,9 +186,18 @@ export default function AdminScores() {
     </main>;
   }
 
-  return <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
-    <section className="card">
-      <h1 style={{ marginTop: 0 }}>🏈 Score Admin</h1>
+  return <main className="admin-obsidian">
+    <section className="admin-status-banner">
+      <div><span className="kicker">SYSTEM MONITOR / LIVE</span><h1>Booster Bowl Operations</h1></div>
+      <div className="admin-operational">ALL CORE SYSTEMS ACTIVE</div>
+    </section>
+    <section className="admin-metric-grid">
+      <article className="admin-metric"><span>DATABASE STATUS</span><strong>ONLINE</strong><small>NOMINAL</small></article>
+      <article className="admin-metric"><span>FINAL RESULTS</span><strong>{completed}/{games.length}</strong><small>WEEK {selectedWeek}</small></article>
+      <article className="admin-metric"><span>PICK BOARD</span><strong>W{activeWeek}</strong><small>LIVE SYNC</small></article>
+    </section>
+    <section className="card admin-command-panel">
+      <h2>🏈 Score Controls</h2>
       <p>Season {SEASON} — Week {selectedWeek}</p>
       <p style={{ opacity: .8 }}>Pick boards are currently on Week {activeWeek}. Choose the week you need to score below.</p>
       <label style={{ display: "block", marginBottom: 12 }}><b>Scoring week: </b><select value={selectedWeek} onChange={async (e) => { const week = Number(e.target.value); setSelectedWeek(week); await loadGames(week); }} style={{ marginLeft: 8, padding: 8 }}>{Array.from({ length: activeWeek }, (_, i) => activeWeek - i).map((week) => <option key={week} value={week}>Week {week}</option>)}</select></label>
@@ -216,7 +225,7 @@ export default function AdminScores() {
       </details>
     </section>
     <div style={{ height: 18 }} />
-    {loading ? <section className="card"><p>Loading games...</p></section> : games.map((g, index) => <section className="card" key={g.id} style={{ marginBottom: 14 }}>
+    {loading ? <section className="card"><p>Loading games...</p></section> : games.map((g, index) => <section className="card admin-game-row" key={g.id} style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 13, opacity: .7 }}>GAME {index + 1} OF {games.length} • ID {g.id}</div>
       <h2 style={{ marginBottom: 8 }}>{g.away_team} at {g.home_team}</h2>
       {g.is_final ? <p>✅ <b>FINAL:</b> {g.away_team} {g.away_score} — {g.home_team} {g.home_score}<br/>Winner: <b>{g.winner}</b></p> : <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 10, alignItems: "center" }}>
