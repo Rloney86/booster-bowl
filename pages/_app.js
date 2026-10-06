@@ -310,7 +310,7 @@ export default function MyApp({ Component, pageProps }) {
           <nav style={{ display: "flex", gap: 18, flex: "1 1 auto", minWidth: 0, overflowX: "auto", whiteSpace: "nowrap", paddingBottom: 2 }}>
             <Link href="/" style={navLink}>Home</Link>
             <Link href="/picks" style={navLink}>Make Picks</Link>
-            <Link href="/leaderboard" style={navLink}>Leaderboard</Link>
+            <Link href="/leaderboard" style={navLink}>Leaderboard</Link>\n            <Link href="/community" style={navLink}>Community</Link>
             <Link href="/about" style={navLink}>About</Link>
           </nav>
         </div>
